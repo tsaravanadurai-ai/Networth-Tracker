@@ -17,8 +17,9 @@ function ReportsPage() {
   const [month, setMonth] = useState(getCurrentMonth());
   const [year, setYear] = useState(getCurrentYear());
   const [summary, setSummary] = useState(null);
-  const [activeTab, setActiveTab] = useState('consolidated');
+  const [activeTab, setActiveTab] = useState('trend');
   const [loading, setLoading] = useState(true);
+  const [targetCrore, setTargetCrore] = useState(10);
 
   useEffect(() => {
     fetchAllData();
@@ -53,12 +54,15 @@ function ReportsPage() {
 
   if (loading) return <div className="empty-state"><p>Loading reports...</p></div>;
 
-  const consolidatedChartData = trendData?.consolidated ? {
-    labels: trendData.consolidated.map(t => t.label),
+  // ============ TREND & GROWTH DATA ============
+  const consolidated = trendData?.consolidated || [];
+
+  const consolidatedChartData = consolidated.length > 0 ? {
+    labels: consolidated.map(t => t.label),
     datasets: [
       {
-        label: 'Total Invested',
-        data: trendData.consolidated.map(t => t.invested),
+        label: 'Invested',
+        data: consolidated.map(t => t.invested),
         borderColor: 'rgba(79, 70, 229, 1)',
         backgroundColor: 'rgba(79, 70, 229, 0.1)',
         fill: true,
@@ -66,7 +70,7 @@ function ReportsPage() {
       },
       {
         label: 'Net Worth',
-        data: trendData.consolidated.map(t => t.netWorth || t.currentValue),
+        data: consolidated.map(t => t.netWorth || t.currentValue),
         borderColor: 'rgba(16, 185, 129, 1)',
         backgroundColor: 'rgba(16, 185, 129, 0.1)',
         fill: true,
@@ -75,6 +79,187 @@ function ReportsPage() {
     ]
   } : null;
 
+  // Calculate MoM and YoY growth
+  const growthData = consolidated.map((row, i) => {
+    const nw = row.netWorth || row.currentValue;
+    const prevNw = i > 0 ? (consolidated[i - 1].netWorth || consolidated[i - 1].currentValue) : null;
+    const yoyNw = i >= 12 ? (consolidated[i - 12].netWorth || consolidated[i - 12].currentValue) : null;
+    return {
+      label: row.label,
+      netWorth: nw,
+      invested: row.invested,
+      interest: row.interest,
+      momGrowth: prevNw && prevNw > 0 ? ((nw - prevNw) / prevNw) * 100 : null,
+      yoyGrowth: yoyNw && yoyNw > 0 ? ((nw - yoyNw) / yoyNw) * 100 : null,
+    };
+  });
+
+  const momChartData = {
+    labels: growthData.filter(g => g.momGrowth !== null).map(g => g.label),
+    datasets: [{
+      label: 'MoM Growth %',
+      data: growthData.filter(g => g.momGrowth !== null).map(g => g.momGrowth),
+      borderColor: 'rgba(79, 70, 229, 1)',
+      backgroundColor: 'rgba(79, 70, 229, 0.1)',
+      fill: true,
+      tension: 0.4,
+      pointRadius: 2,
+    }]
+  };
+
+  const yoyChartData = {
+    labels: growthData.filter(g => g.yoyGrowth !== null).map(g => g.label),
+    datasets: [{
+      label: 'YoY Growth %',
+      data: growthData.filter(g => g.yoyGrowth !== null).map(g => g.yoyGrowth),
+      borderColor: 'rgba(16, 185, 129, 1)',
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      fill: true,
+      tension: 0.4,
+      pointRadius: 2,
+    }]
+  };
+
+  const pctChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { ticks: { callback: (v) => v.toFixed(0) + '%' } },
+      x: { ticks: { maxRotation: 45, font: { size: 10 } } }
+    }
+  };
+
+  // ============ INCOME PROJECTOR DATA ============
+  const targetAmount = targetCrore * 10000000; // 1 Crore = 1,00,00,000
+  const currentNetWorth = consolidated.length > 0 ? (consolidated[consolidated.length - 1].netWorth || consolidated[consolidated.length - 1].currentValue) : 0;
+  const actualYoyGrowth = growthData.length > 0 ? growthData[growthData.length - 1].yoyGrowth : null;
+
+  const growthRates = [25, 30, 35, 40, 45, 50];
+
+  const getTargetDate = (current, target, annualRate) => {
+    if (current <= 0 || target <= current) return { date: 'Already reached!', months: 0 };
+    const monthlyRate = Math.pow(1 + annualRate / 100, 1 / 12) - 1;
+    const months = Math.ceil(Math.log(target / current) / Math.log(1 + monthlyRate));
+    if (months > 60) return { date: 'Beyond 5 years', months: months };
+    const targetDate = new Date();
+    targetDate.setMonth(targetDate.getMonth() + months);
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return { date: `${monthNames[targetDate.getMonth()]} ${targetDate.getFullYear()}`, months };
+  };
+
+  const targetTableData = growthRates.map(rate => {
+    const result = getTargetDate(currentNetWorth, targetAmount, rate);
+    return { rate, ...result };
+  });
+
+  // 5-year projection data
+  const projectionMonths = 60;
+  const projectionColors = ['#4F46E5', '#EC4899', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444'];
+  const projectionLabels = [];
+  const now = new Date();
+  for (let i = 0; i <= projectionMonths; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    if (i === 0 || d.getMonth() % 3 === 0) {
+      projectionLabels.push(`${monthNames[d.getMonth()]} ${d.getFullYear()}`);
+    } else {
+      projectionLabels.push('');
+    }
+  }
+
+  const projectionAllLabels = [];
+  for (let i = 0; i <= projectionMonths; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    projectionAllLabels.push(`${monthNames[d.getMonth()]} ${d.getFullYear()}`);
+  }
+
+  const projectionDatasets = growthRates.map((rate, idx) => {
+    const monthlyRate = Math.pow(1 + rate / 100, 1 / 12) - 1;
+    const values = [];
+    for (let i = 0; i <= projectionMonths; i++) {
+      values.push(currentNetWorth * Math.pow(1 + monthlyRate, i));
+    }
+    return {
+      label: `${rate}%`,
+      data: values,
+      borderColor: projectionColors[idx],
+      backgroundColor: 'transparent',
+      tension: 0.4,
+      pointRadius: 0,
+      borderWidth: 2,
+    };
+  });
+
+  // Add target line
+  projectionDatasets.push({
+    label: `${targetCrore} Crore Target`,
+    data: Array(projectionMonths + 1).fill(targetAmount),
+    borderColor: '#EF4444',
+    borderDash: [5, 5],
+    backgroundColor: 'transparent',
+    pointRadius: 0,
+    borderWidth: 2,
+  });
+
+  const projectionChartData = {
+    labels: projectionAllLabels,
+    datasets: projectionDatasets
+  };
+
+  const projectionChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'top' },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => {
+            const val = ctx.raw;
+            if (val >= 10000000) return `${ctx.dataset.label}: ₹${(val / 10000000).toFixed(2)}Cr`;
+            return `${ctx.dataset.label}: ₹${(val / 100000).toFixed(2)}L`;
+          }
+        }
+      }
+    },
+    scales: {
+      y: {
+        ticks: {
+          callback: (value) => {
+            if (value >= 10000000) return '₹' + (value / 10000000).toFixed(1) + 'Cr';
+            return '₹' + (value / 100000).toFixed(1) + 'L';
+          }
+        }
+      },
+      x: {
+        ticks: {
+          maxRotation: 45,
+          font: { size: 10 },
+          callback: function (val, index) {
+            const label = this.getLabelForValue(val);
+            // Show every 3rd month
+            return index % 3 === 0 ? label : '';
+          }
+        }
+      }
+    }
+  };
+
+  // Monthly projection table (first 12 months)
+  const projectionTableData = [];
+  for (let i = 0; i <= 60; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const row = { label: `${monthNames[d.getMonth()]} ${d.getFullYear()}`, values: {} };
+    growthRates.forEach(rate => {
+      const monthlyRate = Math.pow(1 + rate / 100, 1 / 12) - 1;
+      row.values[rate] = currentNetWorth * Math.pow(1 + monthlyRate, i);
+    });
+    projectionTableData.push(row);
+  }
+
+  // ============ MEMBER COMPARISON ============
   const memberColors = {
     1: { border: '#4F46E5', bg: 'rgba(79, 70, 229, 0.1)' },
     2: { border: '#EC4899', bg: 'rgba(236, 72, 153, 0.1)' },
@@ -83,20 +268,16 @@ function ReportsPage() {
     5: { border: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.1)' },
   };
 
-  // Build comparison chart with each member starting from their own first month
-  const allLabels = trendData?.consolidated?.map(t => t.label) || [];
+  const allLabels = consolidated.map(t => t.label);
   const memberComparisonData = trendData?.members ? {
     labels: allLabels,
     datasets: trendData.members.map(member => {
       const memberTrend = trendData.trends[member.id] || [];
       if (memberTrend.length === 0) return null;
-
-      // Map member data to the consolidated timeline, using null for months before they started
       const dataPoints = allLabels.map(label => {
         const entry = memberTrend.find(t => t.label === label);
         return entry ? (entry.netWorth || entry.currentValue) : null;
       });
-
       return {
         label: member.name,
         data: dataPoints,
@@ -111,20 +292,16 @@ function ReportsPage() {
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: {
-      legend: { position: 'top' },
-    },
+    plugins: { legend: { position: 'top' } },
     scales: {
       y: {
         beginAtZero: true,
-        ticks: {
-          callback: (value) => '₹' + (value / 100000).toFixed(1) + 'L'
-        }
+        ticks: { callback: (value) => '₹' + (value / 100000).toFixed(1) + 'L' }
       }
     }
   };
 
-  // Asset class data for the split report
+  // ============ ASSET CLASS ============
   const assetClassData = summary ? (() => {
     const classMap = {};
     summary.summary.forEach(({ member, categoryBreakdown }) => {
@@ -138,7 +315,6 @@ function ReportsPage() {
         }
       });
     });
-    // Add Gold as an asset class
     if (summary.consolidated.goldGrams > 0) {
       classMap['Gold'] = {
         invested: summary.consolidated.goldPurchaseValue || 0,
@@ -165,6 +341,7 @@ function ReportsPage() {
     }]
   } : null;
 
+  // ============ RENDER ============
   return (
     <div>
       <div className="page-header">
@@ -173,80 +350,189 @@ function ReportsPage() {
       </div>
 
       <div className="tabs">
-        <button className={`tab ${activeTab === 'consolidated' ? 'active' : ''}`} onClick={() => setActiveTab('consolidated')}>
-          Consolidated Trend
-        </button>
-        <button className={`tab ${activeTab === 'comparison' ? 'active' : ''}`} onClick={() => setActiveTab('comparison')}>
-          Member Comparison
-        </button>
-        <button className={`tab ${activeTab === 'assetclass' ? 'active' : ''}`} onClick={() => setActiveTab('assetclass')}>
-          Asset Class Split
-        </button>
-        <button className={`tab ${activeTab === 'monthly' ? 'active' : ''}`} onClick={() => setActiveTab('monthly')}>
-          Monthly Report
-        </button>
+        <button className={`tab ${activeTab === 'trend' ? 'active' : ''}`} onClick={() => setActiveTab('trend')}>Trend & Growth</button>
+        <button className={`tab ${activeTab === 'projector' ? 'active' : ''}`} onClick={() => setActiveTab('projector')}>Income Projector</button>
+        <button className={`tab ${activeTab === 'comparison' ? 'active' : ''}`} onClick={() => setActiveTab('comparison')}>Member Comparison</button>
+        <button className={`tab ${activeTab === 'assetclass' ? 'active' : ''}`} onClick={() => setActiveTab('assetclass')}>Asset Class Split</button>
+        <button className={`tab ${activeTab === 'monthly' ? 'active' : ''}`} onClick={() => setActiveTab('monthly')}>Monthly Report</button>
       </div>
 
-      {activeTab === 'consolidated' && (
+      {/* ============ TREND & GROWTH TAB ============ */}
+      {activeTab === 'trend' && (
         <div>
           {consolidatedChartData && consolidatedChartData.labels.length > 0 ? (
-            <div className="card" style={{ marginBottom: '2rem' }}>
-              <div className="card-header"><h3>Family Net Worth Growth</h3></div>
-              <div className="card-body">
-                <div className="chart-container" style={{ height: '400px' }}>
-                  <Line data={consolidatedChartData} options={chartOptions} />
+            <>
+              <div className="card" style={{ marginBottom: '2rem' }}>
+                <div className="card-header"><h3>Family Net Worth Growth</h3></div>
+                <div className="card-body">
+                  <div className="chart-container" style={{ height: '400px' }}>
+                    <Line data={consolidatedChartData} options={chartOptions} />
+                  </div>
                 </div>
               </div>
-            </div>
+
+              <div className="grid-2" style={{ marginBottom: '2rem' }}>
+                <div className="card">
+                  <div className="card-header"><h3>Month-over-Month Growth %</h3></div>
+                  <div className="card-body">
+                    <div className="chart-container" style={{ height: '300px' }}>
+                      <Line data={momChartData} options={pctChartOptions} />
+                    </div>
+                  </div>
+                </div>
+                <div className="card">
+                  <div className="card-header"><h3>Year-over-Year Growth %</h3></div>
+                  <div className="card-body">
+                    <div className="chart-container" style={{ height: '300px' }}>
+                      <Line data={yoyChartData} options={pctChartOptions} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="card">
+                <div className="card-header"><h3>Monthly Summary with Growth</h3></div>
+                <div className="card-body">
+                  <div className="table-container">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Month</th>
+                          <th style={{ textAlign: 'right' }}>Net Worth</th>
+                          <th style={{ textAlign: 'right' }}>MoM Growth</th>
+                          <th style={{ textAlign: 'right' }}>YoY Growth</th>
+                          <th style={{ textAlign: 'right' }}>Invested</th>
+                          <th style={{ textAlign: 'right' }}>Interest</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...growthData].reverse().map((row, i) => (
+                          <tr key={i}>
+                            <td style={{ fontWeight: i === 0 ? '700' : '400' }}>{row.label}</td>
+                            <td style={{ textAlign: 'right', fontWeight: '600' }}>{formatCurrency(row.netWorth)}</td>
+                            <td style={{ textAlign: 'right' }} className={`amount ${row.momGrowth !== null ? (row.momGrowth >= 0 ? 'positive' : 'negative') : ''}`}>
+                              {row.momGrowth !== null ? `${row.momGrowth >= 0 ? '+' : ''}${row.momGrowth.toFixed(2)}%` : '-'}
+                            </td>
+                            <td style={{ textAlign: 'right' }} className={`amount ${row.yoyGrowth !== null ? (row.yoyGrowth >= 0 ? 'positive' : 'negative') : ''}`}>
+                              {row.yoyGrowth !== null ? `${row.yoyGrowth >= 0 ? '+' : ''}${row.yoyGrowth.toFixed(2)}%` : '-'}
+                            </td>
+                            <td style={{ textAlign: 'right' }} className="amount">{formatCurrency(row.invested)}</td>
+                            <td style={{ textAlign: 'right' }} className={`amount ${row.interest >= 0 ? 'positive' : 'negative'}`}>{formatCurrency(row.interest)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </>
           ) : (
             <div className="empty-state">
               <h3>No trend data available</h3>
               <p>Add entries for multiple months to see growth trends.</p>
             </div>
           )}
-
-          {trendData?.consolidated && trendData.consolidated.length > 0 && (
-            <div className="card">
-              <div className="card-header"><h3>Monthly Summary Table</h3></div>
-              <div className="card-body">
-                <div className="table-container">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Month</th>
-                        <th style={{ textAlign: 'right' }}>Invested</th>
-                        <th style={{ textAlign: 'right' }}>Current Value</th>
-                        <th style={{ textAlign: 'right' }}>Interest</th>
-                        <th style={{ textAlign: 'right' }}>Debt</th>
-                        <th style={{ textAlign: 'right' }}>Net Worth</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[...trendData.consolidated].reverse().map((row, i) => (
-                        <tr key={i}>
-                          <td>{row.label}</td>
-                          <td style={{ textAlign: 'right' }} className="amount">{formatCurrency(row.invested)}</td>
-                          <td style={{ textAlign: 'right' }} className="amount">{formatCurrency(row.currentValue)}</td>
-                          <td style={{ textAlign: 'right' }} className={`amount ${row.interest >= 0 ? 'positive' : 'negative'}`}>
-                            {formatCurrency(row.interest)}
-                          </td>
-                          <td style={{ textAlign: 'right', color: 'var(--danger)' }}>
-                            {row.debt > 0 ? `-${formatCurrency(row.debt)}` : '-'}
-                          </td>
-                          <td style={{ textAlign: 'right', fontWeight: '600' }} className={`amount ${(row.netWorth || row.currentValue) >= 0 ? 'positive' : 'negative'}`}>
-                            {formatCurrency(row.netWorth || row.currentValue)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
+      {/* ============ INCOME PROJECTOR TAB ============ */}
+      {activeTab === 'projector' && (
+        <div>
+          <div className="stats-grid" style={{ marginBottom: '2rem' }}>
+            <div className="stat-card" style={{ borderLeft: '4px solid var(--primary)' }}>
+              <div className="stat-label">Current Net Worth</div>
+              <div className="stat-value">{formatCurrency(currentNetWorth)}</div>
+            </div>
+            <div className="stat-card" style={{ borderLeft: '4px solid var(--primary)' }}>
+              <div className="stat-label">Target</div>
+              <div className="stat-value">{formatCurrency(targetAmount)}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <input
+                  type="number"
+                  value={targetCrore}
+                  onChange={(e) => setTargetCrore(Number(e.target.value) || 1)}
+                  min="1"
+                  max="1000"
+                  style={{ width: '70px', padding: '0.25rem 0.5rem', borderRadius: '6px', border: '1px solid var(--gray-200)', fontSize: '0.85rem' }}
+                />
+                <span style={{ fontSize: '0.85rem', color: 'var(--gray-500)' }}>Crore</span>
+              </div>
+            </div>
+            <div className="stat-card" style={{ borderLeft: '4px solid var(--success)' }}>
+              <div className="stat-label">Actual YOY Growth</div>
+              <div className="stat-value" style={{ color: 'var(--success)' }}>
+                {actualYoyGrowth !== null ? `${actualYoyGrowth.toFixed(1)}%` : 'N/A'}
+              </div>
+            </div>
+          </div>
+
+          <div className="card" style={{ marginBottom: '2rem' }}>
+            <div className="card-header"><h3>Target {targetCrore} Crore - When will I reach?</h3></div>
+            <div className="card-body">
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Growth Rate</th>
+                      <th>Target Date</th>
+                      <th>Months Away</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {targetTableData.map(row => (
+                      <tr key={row.rate}>
+                        <td><strong>{row.rate}% annual</strong></td>
+                        <td>{row.date}</td>
+                        <td>{row.months > 60 ? '60+' : `${row.months} months`}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div className="card" style={{ marginBottom: '2rem' }}>
+            <div className="card-header"><h3>5-Year Projection at Different Growth Rates</h3></div>
+            <div className="card-body">
+              <div className="chart-container" style={{ height: '450px' }}>
+                <Line data={projectionChartData} options={projectionChartOptions} />
+              </div>
+              <p style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--gray-500)', marginTop: '0.5rem' }}>
+                Red line = {targetCrore} Crore target
+              </p>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-header"><h3>Monthly Projection Table</h3></div>
+            <div className="card-body">
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      {growthRates.map(r => <th key={r} style={{ textAlign: 'right' }}>{r}%</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {projectionTableData.map((row, i) => (
+                      <tr key={i} style={i === 0 ? { fontWeight: '700' } : {}}>
+                        <td style={i === 0 ? { fontWeight: '700', color: 'var(--primary)' } : {}}>{row.label}</td>
+                        {growthRates.map(r => (
+                          <td key={r} style={{ textAlign: 'right' }}>{formatCurrency(row.values[r])}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ MEMBER COMPARISON TAB ============ */}
       {activeTab === 'comparison' && (
         <div>
           {memberComparisonData && memberComparisonData.labels.length > 0 ? (
@@ -283,14 +569,13 @@ function ReportsPage() {
         </div>
       )}
 
+      {/* ============ ASSET CLASS TAB ============ */}
       {activeTab === 'assetclass' && (
         <div>
           <div className="month-selector">
             <label>Month:</label>
             <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
-              {MONTHS.map((m, i) => (
-                <option key={i} value={i + 1}>{m}</option>
-              ))}
+              {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
             </select>
             <label>Year:</label>
             <input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} min="2020" max="2050" />
@@ -335,15 +620,9 @@ function ReportsPage() {
                           scales: {
                             x: {
                               beginAtZero: true,
-                              ticks: {
-                                callback: (value) => '₹' + (value / 100000).toFixed(1) + 'L'
-                              }
+                              ticks: { callback: (value) => '₹' + (value / 100000).toFixed(1) + 'L' }
                             },
-                            y: {
-                              ticks: {
-                                font: { size: 11 }
-                              }
-                            }
+                            y: { ticks: { font: { size: 11 } } }
                           }
                         }}
                       />
@@ -443,14 +722,13 @@ function ReportsPage() {
         </div>
       )}
 
+      {/* ============ MONTHLY REPORT TAB ============ */}
       {activeTab === 'monthly' && (
         <div>
           <div className="month-selector">
             <label>Month:</label>
             <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
-              {MONTHS.map((m, i) => (
-                <option key={i} value={i + 1}>{m}</option>
-              ))}
+              {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
             </select>
             <label>Year:</label>
             <input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} min="2020" max="2050" />
