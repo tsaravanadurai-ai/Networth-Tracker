@@ -70,6 +70,23 @@ router.post('/gold-savings', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+router.put('/gold-savings/:id', async (req, res) => {
+  try {
+    const { family_member_id, description, grams, purchase_month, purchase_year, notes } = req.body;
+    if (!family_member_id || !grams || !purchase_month || !purchase_year) return res.status(400).json({ error: 'Member, grams, month, and year are required' });
+    const db = getDb();
+    let price = await db.execute({ sql: 'SELECT price_per_gram FROM gold_prices WHERE year = ? AND month = ?', args: [purchase_year, purchase_month] });
+    if (price.rows.length === 0) price = await db.execute({ sql: 'SELECT price_per_gram FROM gold_prices ORDER BY ABS(year - ?) + ABS(month - ?) LIMIT 1', args: [purchase_year, purchase_month] });
+    const pricePerGram = price.rows[0]?.price_per_gram || 0;
+    const purchaseAmount = parseFloat(grams) * pricePerGram;
+    await db.execute({
+      sql: 'UPDATE gold_savings SET family_member_id = ?, description = ?, grams = ?, purchase_month = ?, purchase_year = ?, purchase_price_per_gram = ?, purchase_amount = ?, notes = ? WHERE id = ?',
+      args: [family_member_id, description || 'Gold', parseFloat(grams), purchase_month, purchase_year, pricePerGram, purchaseAmount, notes || '', req.params.id]
+    });
+    res.json({ message: `Updated gold entry. Value: ₹${purchaseAmount.toLocaleString('en-IN')} (at ₹${pricePerGram}/g)` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.delete('/gold-savings/:id', async (req, res) => {
   try { const db = getDb(); await db.execute({ sql: 'DELETE FROM gold_savings WHERE id = ?', args: [req.params.id] }); res.json({ message: 'Gold entry deleted' }); }
   catch (err) { res.status(500).json({ error: err.message }); }

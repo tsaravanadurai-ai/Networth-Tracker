@@ -15,6 +15,7 @@ function ExtrasPage() {
   const [formData, setFormData] = useState({});
   const [goldFile, setGoldFile] = useState(null);
   const [goldUploading, setGoldUploading] = useState(false);
+  const [goldMemberFilter, setGoldMemberFilter] = useState('all');
 
   useEffect(() => { fetchMembers(); }, []);
   useEffect(() => {
@@ -65,8 +66,13 @@ function ExtrasPage() {
     e.preventDefault();
     try {
       if (modalType === 'gold') {
-        const res = await api.post('/extras/gold-savings', formData);
-        showMsg(res.data.message);
+        if (editingItem) {
+          const res = await api.put(`/extras/gold-savings/${editingItem.id}`, formData);
+          showMsg(res.data.message);
+        } else {
+          const res = await api.post('/extras/gold-savings', formData);
+          showMsg(res.data.message);
+        }
         fetchGold();
       } else if (modalType === 'bank') {
         if (editingItem) {
@@ -217,7 +223,16 @@ function ExtrasPage() {
           </div>
 
           <div className="card">
-            <div className="card-header"><h3>Gold Savings - All Members</h3></div>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <h3>Gold Savings</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <label style={{ fontSize: '0.85rem', color: 'var(--gray-500)' }}>Filter:</label>
+                <select value={goldMemberFilter} onChange={e => setGoldMemberFilter(e.target.value)} className="form-control" style={{ width: 'auto', minWidth: '150px', padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}>
+                  <option value="all">All Members</option>
+                  {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </div>
+            </div>
             <div className="card-body">
               {!goldData?.entries?.length ? (
                 <div className="empty-state"><h3>No gold entries yet</h3></div>
@@ -238,7 +253,7 @@ function ExtrasPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {goldData.entries.map(e => (
+                      {goldData.entries.filter(e => goldMemberFilter === 'all' || e.family_member_id === Number(goldMemberFilter)).map(e => (
                         <tr key={e.id}>
                           <td><span className="member-dot" style={{ backgroundColor: e.member_color }}></span>{e.member_name}</td>
                           <td>{e.description}</td>
@@ -248,7 +263,10 @@ function ExtrasPage() {
                           <td style={{ textAlign: 'right' }} className="amount">{formatCurrency(e.purchase_amount)}</td>
                           <td style={{ textAlign: 'right' }} className="amount">{formatCurrency(e.current_value)}</td>
                           <td style={{ textAlign: 'right' }} className={`amount ${e.gain >= 0 ? 'positive' : 'negative'}`}>{formatCurrency(e.gain)}</td>
-                          <td><button className="btn btn-danger btn-sm" onClick={() => handleDelete('gold-savings', e.id)}>Delete</button></td>
+                          <td>
+                            <button className="btn btn-secondary btn-sm" onClick={() => openModal('gold', e)} style={{ marginRight: '0.5rem' }}>Edit</button>
+                            <button className="btn btn-danger btn-sm" onClick={() => handleDelete('gold-savings', e.id)}>Delete</button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
