@@ -33,12 +33,15 @@ function Dashboard() {
   if (!summary) return <div className="empty-state"><h3>No data available</h3><p>Start by adding monthly entries.</p></div>;
 
   const { consolidated } = summary;
-  const membersWithData = summary.summary.filter(s => s.entryCount > 0);
+  const membersWithData = summary.summary.filter(s => s.entryCount > 0 || (s.goldGrams && s.goldGrams > 0));
+
+  const getGoldValue = (s) => s.goldGrams > 0 && consolidated.goldPricePerGram ? s.goldGrams * consolidated.goldPricePerGram : 0;
+  const getGoldPurchase = (s) => s.goldPurchaseValue || 0;
 
   const doughnutData = {
     labels: membersWithData.map(s => s.member.name),
     datasets: [{
-      data: membersWithData.map(s => s.totalCurrentValue),
+      data: membersWithData.map(s => s.totalCurrentValue + getGoldValue(s)),
       backgroundColor: membersWithData.map(s => s.member.color),
       borderWidth: 2,
       borderColor: '#fff',
@@ -50,12 +53,12 @@ function Dashboard() {
     datasets: [
       {
         label: 'Invested',
-        data: membersWithData.map(s => s.totalInvested),
+        data: membersWithData.map(s => s.totalInvested + getGoldPurchase(s)),
         backgroundColor: 'rgba(79, 70, 229, 0.7)',
       },
       {
         label: 'Current Value',
-        data: membersWithData.map(s => s.totalCurrentValue),
+        data: membersWithData.map(s => s.totalCurrentValue + getGoldValue(s)),
         backgroundColor: 'rgba(16, 185, 129, 0.7)',
       }
     ]

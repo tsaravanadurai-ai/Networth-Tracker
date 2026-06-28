@@ -20,6 +20,7 @@ function ReportsPage() {
   const [activeTab, setActiveTab] = useState('trend');
   const [loading, setLoading] = useState(true);
   const [targetCrore, setTargetCrore] = useState(10);
+  const [targetYears, setTargetYears] = useState(5);
 
   useEffect(() => {
     fetchAllData();
@@ -462,6 +463,37 @@ function ReportsPage() {
               <div className="stat-label">Actual YOY Growth</div>
               <div className="stat-value" style={{ color: 'var(--success)' }}>
                 {actualYoyGrowth !== null ? `${actualYoyGrowth.toFixed(1)}%` : 'N/A'}
+              </div>
+              {actualYoyGrowth !== null && currentNetWorth > 0 && (
+                <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: 'var(--gray-500)' }}>
+                  {[1, 2, 3, 5, 10].map(y => {
+                    const projected = currentNetWorth * Math.pow(1 + actualYoyGrowth / 100, y);
+                    const label = projected >= 10000000 ? `₹${(projected / 10000000).toFixed(1)}Cr` : `₹${(projected / 100000).toFixed(1)}L`;
+                    return <div key={y}>{y}yr: <strong>{label}</strong></div>;
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="stat-card" style={{ borderLeft: '4px solid #F59E0B' }}>
+              <div className="stat-label">Required Annual Growth</div>
+              <div className="stat-value" style={{ color: '#F59E0B' }}>
+                {currentNetWorth > 0 && targetAmount > currentNetWorth
+                  ? `${((Math.pow(targetAmount / currentNetWorth, 1 / targetYears) - 1) * 100).toFixed(1)}%`
+                  : 'N/A'}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)', marginBottom: '0.5rem' }}>
+                to reach {targetCrore} Crore in
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="number"
+                  value={targetYears}
+                  onChange={(e) => setTargetYears(Math.max(1, Number(e.target.value) || 1))}
+                  min="1"
+                  max="30"
+                  style={{ width: '55px', padding: '0.25rem 0.5rem', borderRadius: '6px', border: '1px solid var(--gray-200)', fontSize: '0.85rem' }}
+                />
+                <span style={{ fontSize: '0.85rem', color: 'var(--gray-500)' }}>years</span>
               </div>
             </div>
           </div>
