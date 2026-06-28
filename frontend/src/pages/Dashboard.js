@@ -133,7 +133,7 @@ function Dashboard() {
         )}
         {consolidated.goldGrams > 0 && (
           <div className="stat-card" style={{ borderLeft: '4px solid #F59E0B' }}>
-            <div className="stat-label">Gold in Hand</div>
+            <div className="stat-label">Gold</div>
             <div className="stat-value" style={{ color: '#F59E0B' }}>{formatCurrency(consolidated.goldCurrentValue || 0)}</div>
             <div className="stat-change" style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>
               {consolidated.goldGrams?.toFixed(1)}g @ ₹{consolidated.goldPricePerGram?.toLocaleString('en-IN')}/g (22K Chennai)
@@ -208,7 +208,7 @@ function Dashboard() {
                 </div>
                 {goldGrams > 0 && (
                   <div className="member-stat-item">
-                    <div className="label">Gold in Hand</div>
+                    <div className="label">Gold</div>
                     <div className="value" style={{ color: '#F59E0B' }}>
                       {goldGrams.toFixed(1)}g
                     </div>
