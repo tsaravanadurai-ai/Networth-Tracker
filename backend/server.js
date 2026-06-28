@@ -10,6 +10,8 @@ const excelRoutes = require('./routes/excel');
 const goldRoutes = require('./routes/gold');
 const extrasRoutes = require('./routes/extras');
 
+const { startGoldPriceCron } = require('./cron/goldPriceFetcher');
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -36,6 +38,7 @@ app.get('*', (req, res) => {
 
 async function start() {
   await initializeDatabase();
+  startGoldPriceCron();
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });

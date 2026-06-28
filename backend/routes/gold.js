@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { getDb } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
+const { fetchAndStoreGoldPrice } = require('../cron/goldPriceFetcher');
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -176,6 +177,23 @@ router.get('/template', async (req, res) => {
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename="Gold_Prices_Template.xlsx"');
     res.send(buffer);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Manual trigger to fetch current gold price from API
+router.post('/fetch-live', async (req, res) => {
+  try {
+    if (!process.env.GOLD_API_KEY) {
+      return res.status(400).json({ error: 'GOLD_API_KEY environment variable is not set. Get a free key from https://www.goldapi.io' });
+    }
+    await fetchAndStoreGoldPrice();
+    const now = new Date();
+    const db = getDb();
+    const result = await db.execute({
+      sql: 'SELECT * FROM gold_prices WHERE month = ? AND year = ?',
+      args: [now.getMonth() + 1, now.getFullYear()],
+    });
+    res.json({ message: 'Gold price fetched and stored', price: result.rows[0] || null });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

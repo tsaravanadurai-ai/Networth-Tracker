@@ -11,6 +11,7 @@ function GoldPricePage() {
   const [loading, setLoading] = useState(true);
   const [uploadFile, setUploadFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [fetchingLive, setFetchingLive] = useState(false);
 
   useEffect(() => {
     fetchPrices();
@@ -83,6 +84,20 @@ function GoldPricePage() {
     setTimeout(() => setMessage(''), 3000);
   };
 
+  const handleFetchLive = async () => {
+    setFetchingLive(true);
+    try {
+      const res = await api.post('/gold/fetch-live');
+      setMessage({ text: res.data.message + (res.data.price ? ` — ₹${res.data.price.price_per_gram}/gram` : ''), isError: false });
+      fetchPrices();
+    } catch (err) {
+      setMessage({ text: err.response?.data?.error || 'Error fetching live price', isError: true });
+    } finally {
+      setFetchingLive(false);
+    }
+    setTimeout(() => setMessage(''), 5000);
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -129,6 +144,9 @@ function GoldPricePage() {
               />
             </div>
             <button type="submit" className="btn btn-primary">Save Price</button>
+            <button type="button" className="btn btn-secondary" onClick={handleFetchLive} disabled={fetchingLive} style={{ marginLeft: '0.5rem' }}>
+              {fetchingLive ? 'Fetching...' : '📡 Fetch Live Price'}
+            </button>
           </form>
           <p style={{ marginTop: '1rem', fontSize: '0.8rem', color: 'var(--gray-500)' }}>
             Enter the gold rate as on 20th of each month (Chennai, 22 Karat, per gram). 
