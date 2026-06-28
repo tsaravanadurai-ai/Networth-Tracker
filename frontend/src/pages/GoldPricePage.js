@@ -102,7 +102,7 @@ function GoldPricePage() {
     <div>
       <div className="page-header">
         <h1>Gold Price Management</h1>
-        <p>Set gold prices (Chennai rate, 22K, per gram on 20th of each month)</p>
+        <p>Set gold prices (Chennai rate, 22K, per gram on 1st of each month)</p>
       </div>
 
       {message && (
@@ -149,7 +149,7 @@ function GoldPricePage() {
             </button>
           </form>
           <p style={{ marginTop: '1rem', fontSize: '0.8rem', color: 'var(--gray-500)' }}>
-            Enter the gold rate as on 20th of each month (Chennai, 22 Karat, per gram). 
+            Enter the gold rate as on 1st of each month (Chennai, 22 Karat, per gram). 
             This rate will be used to calculate gold value when you enter grams in the Monthly Entry form.
           </p>
         </div>

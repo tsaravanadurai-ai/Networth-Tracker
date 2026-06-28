@@ -180,12 +180,9 @@ router.get('/template', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Manual trigger to fetch current gold price from API
+// Manual trigger to fetch current Chennai 22K gold price from GoodReturns
 router.post('/fetch-live', async (req, res) => {
   try {
-    if (!process.env.GOLD_API_KEY) {
-      return res.status(400).json({ error: 'GOLD_API_KEY environment variable is not set. Get a free key from https://www.goldapi.io' });
-    }
     await fetchAndStoreGoldPrice();
     const now = new Date();
     const db = getDb();
