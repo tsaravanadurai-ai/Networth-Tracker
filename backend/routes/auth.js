@@ -5,6 +5,45 @@ const { JWT_SECRET, authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
+router.post('/signup', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required' });
+    }
+
+    if (username.length < 3) {
+      return res.status(400).json({ error: 'Username must be at least 3 characters' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    const db = getDb();
+    const existing = await db.execute({ sql: 'SELECT id FROM users WHERE username = ?', args: [username.toLowerCase()] });
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'Username already taken' });
+    }
+
+    const hashedPassword = hashPassword(password);
+    await db.execute({ sql: 'INSERT INTO users (username, password) VALUES (?, ?)', args: [username.toLowerCase(), hashedPassword] });
+
+    const user = await db.execute({ sql: 'SELECT * FROM users WHERE username = ?', args: [username.toLowerCase()] });
+    const token = jwt.sign(
+      { id: user.rows[0].id, username: user.rows[0].username },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.status(201).json({ token, username: user.rows[0].username });
+  } catch (err) {
+    console.error('Signup error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
