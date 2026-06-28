@@ -174,14 +174,17 @@ function Dashboard() {
 
       <h2 style={{ marginBottom: '1rem', fontSize: '1.25rem', fontWeight: '600' }}>Individual Net Worth</h2>
       <div className="stats-grid">
-        {summary.summary.map(({ member, totalInvested, totalCurrentValue, totalInterest, interestPercentage, entryCount }) => (
+        {summary.summary.map(({ member, totalInvested, totalCurrentValue, totalInterest, interestPercentage, entryCount, goldGrams, goldPurchaseValue }) => {
+          const goldValue = goldGrams > 0 && consolidated.goldPricePerGram ? goldGrams * consolidated.goldPricePerGram : 0;
+          const memberNetWorth = totalCurrentValue - 0 + goldValue;
+          return (
           <Link to={`/member/${member.id}`} key={member.id} className="member-summary-card">
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.25rem' }}>
               <span className="member-dot" style={{ backgroundColor: member.color }}></span>
               <span className="member-name">{member.name}</span>
             </div>
             <div className="member-label">{member.label}</div>
-            {entryCount > 0 ? (
+            {entryCount > 0 || goldGrams > 0 ? (
               <div className="member-stats">
                 <div className="member-stat-item">
                   <div className="label">Invested</div>
@@ -203,12 +206,29 @@ function Dashboard() {
                     {interestPercentage >= 0 ? '+' : ''}{interestPercentage}%
                   </div>
                 </div>
+                {goldGrams > 0 && (
+                  <div className="member-stat-item">
+                    <div className="label">Gold in Hand</div>
+                    <div className="value" style={{ color: '#F59E0B' }}>
+                      {goldGrams.toFixed(1)}g
+                    </div>
+                  </div>
+                )}
+                {goldValue > 0 && (
+                  <div className="member-stat-item">
+                    <div className="label">Gold Value</div>
+                    <div className="value" style={{ color: '#F59E0B' }}>
+                      {formatCurrency(goldValue)}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <p style={{ color: 'var(--gray-400)', fontSize: '0.85rem' }}>No entries yet</p>
             )}
           </Link>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

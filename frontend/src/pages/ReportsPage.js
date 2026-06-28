@@ -138,6 +138,14 @@ function ReportsPage() {
         }
       });
     });
+    // Add Gold in Hand as an asset class
+    if (summary.consolidated.goldGrams > 0) {
+      classMap['Gold in Hand'] = {
+        invested: summary.consolidated.goldPurchaseValue || 0,
+        currentValue: summary.consolidated.goldCurrentValue || 0,
+        isDebt: false
+      };
+    }
     return classMap;
   })() : null;
 
@@ -424,6 +432,9 @@ function ReportsPage() {
                     </table>
                   </div>
                 </div>
+              </div>
+              <div style={{ marginTop: '1rem', padding: '0.75rem 1rem', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '8px', fontSize: '0.85rem', color: '#92400E' }}>
+                <strong>Note:</strong> Real Estate allocation shows the property's current market value. To get the true equity in Real Estate, subtract the outstanding Home Loan (Debt) from the Real Estate current value. For example, if Real Estate value is ₹50L and Home Loan outstanding is ₹30L, your actual Real Estate equity is ₹20L.
               </div>
             </div>
           ) : (

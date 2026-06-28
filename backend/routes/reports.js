@@ -51,13 +51,21 @@ router.get('/summary/:year/:month', async (req, res) => {
         categoryBreakdown[entry.category].entries.push(entry);
       });
 
+      // Get gold savings for this member
+      const memberGold = await db.execute({
+        sql: 'SELECT COALESCE(SUM(grams), 0) as totalGrams, COALESCE(SUM(purchase_amount), 0) as totalPurchase FROM gold_savings WHERE family_member_id = ?',
+        args: [member.id]
+      });
+      const goldGrams = memberGold.rows[0].totalGrams || 0;
+      const goldPurchaseValue = memberGold.rows[0].totalPurchase || 0;
+
       const totalInterest = totalCurrentValue - totalInvested;
       const netWorth = totalCurrentValue - totalDebt;
       const interestPercentage = totalInvested > 0 ? parseFloat(((totalInterest / totalInvested) * 100).toFixed(2)) : 0;
 
       summary.push({
         member, totalInvested, totalCurrentValue, totalInterest, totalDebt, netWorth, interestPercentage,
-        categoryBreakdown, entryCount: entries.length
+        categoryBreakdown, entryCount: entries.length, goldGrams, goldPurchaseValue
       });
     }
 
