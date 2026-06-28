@@ -74,9 +74,26 @@ router.get('/summary/:year/:month', async (req, res) => {
     const bankReserves = await db.execute('SELECT COALESCE(SUM(amount), 0) as total FROM bank_reserves');
     const debtGiven = await db.execute("SELECT COALESCE(SUM(amount), 0) as total FROM debt_given WHERE status = 'pending'");
 
+    // Calculate gold savings value
+    const goldSavings = await db.execute('SELECT COALESCE(SUM(grams), 0) as totalGrams, COALESCE(SUM(purchase_amount), 0) as totalPurchase FROM gold_savings');
+    const totalGoldGrams = goldSavings.rows[0].totalGrams || 0;
+    const totalGoldPurchase = goldSavings.rows[0].totalPurchase || 0;
+
+    // Get gold price for the selected month (or latest available)
+    let goldPriceResult = await db.execute({ sql: 'SELECT price_per_gram FROM gold_prices WHERE year = ? AND month = ? LIMIT 1', args: [year, month] });
+    if (goldPriceResult.rows.length === 0) {
+      goldPriceResult = await db.execute('SELECT price_per_gram FROM gold_prices ORDER BY year DESC, month DESC LIMIT 1');
+    }
+    const goldPricePerGram = goldPriceResult.rows.length > 0 ? goldPriceResult.rows[0].price_per_gram : 0;
+    const goldCurrentValue = totalGoldGrams * goldPricePerGram;
+
     consolidated.bankReserve = bankReserves.rows[0].total;
     consolidated.debtGiven = debtGiven.rows[0].total;
-    consolidated.totalNetWorth = consolidated.netWorth + bankReserves.rows[0].total + debtGiven.rows[0].total;
+    consolidated.goldGrams = totalGoldGrams;
+    consolidated.goldPurchaseValue = totalGoldPurchase;
+    consolidated.goldCurrentValue = goldCurrentValue;
+    consolidated.goldPricePerGram = goldPricePerGram;
+    consolidated.totalNetWorth = consolidated.netWorth + bankReserves.rows[0].total + debtGiven.rows[0].total + goldCurrentValue;
 
     res.json({ summary, consolidated, month: parseInt(month), year: parseInt(year) });
   } catch (err) {

@@ -131,16 +131,23 @@ function Dashboard() {
             <div className="stat-value">{formatCurrency(consolidated.debtGiven)}</div>
           </div>
         )}
+        {consolidated.goldGrams > 0 && (
+          <div className="stat-card" style={{ borderLeft: '4px solid #F59E0B' }}>
+            <div className="stat-label">Gold in Hand</div>
+            <div className="stat-value" style={{ color: '#F59E0B' }}>{formatCurrency(consolidated.goldCurrentValue || 0)}</div>
+            <div className="stat-change" style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>
+              {consolidated.goldGrams?.toFixed(1)}g @ ₹{consolidated.goldPricePerGram?.toLocaleString('en-IN')}/g (22K Chennai)
+            </div>
+          </div>
+        )}
         <div className="stat-card" style={{ borderLeft: '4px solid var(--primary)' }}>
           <div className="stat-label">Total Net Worth</div>
           <div className="stat-value" style={{ color: (consolidated.totalNetWorth || consolidated.netWorth) >= 0 ? 'var(--success)' : 'var(--danger)' }}>
             {formatCurrency(consolidated.totalNetWorth || consolidated.netWorth)}
           </div>
-          {(consolidated.bankReserve > 0 || consolidated.debtGiven > 0) && (
-            <div className="stat-change" style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>
-              Investments + Bank + Receivables - Debt
-            </div>
-          )}
+          <div className="stat-change" style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>
+            Investments + Bank + Receivables + Gold - Debt
+          </div>
         </div>
       </div>
 
