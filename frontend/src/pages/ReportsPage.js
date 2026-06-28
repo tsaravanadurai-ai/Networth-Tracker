@@ -466,7 +466,7 @@ function ReportsPage() {
               </div>
               {actualYoyGrowth !== null && currentNetWorth > 0 && (
                 <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: 'var(--gray-500)' }}>
-                  {[1, 2, 3, 5, 10].map(y => {
+                  {[1, 5, 10].map(y => {
                     const projected = currentNetWorth * Math.pow(1 + actualYoyGrowth / 100, y);
                     const label = projected >= 10000000 ? `₹${(projected / 10000000).toFixed(1)}Cr` : `₹${(projected / 100000).toFixed(1)}L`;
                     return <div key={y}>{y}yr: <strong>{label}</strong></div>;
