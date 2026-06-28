@@ -199,6 +199,56 @@ router.get('/trend-all', async (req, res) => {
 
     const consolidated = Object.values(consolidatedMap).sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month);
 
+    // Add gold savings value to each month in consolidated trend
+    const goldEntries = (await db.execute('SELECT family_member_id, grams, purchase_amount, purchase_month, purchase_year FROM gold_savings')).rows;
+    const goldPrices = (await db.execute('SELECT year, month, price_per_gram FROM gold_prices ORDER BY year, month')).rows;
+
+    const goldPriceMap = {};
+    goldPrices.forEach(p => { goldPriceMap[`${p.year}-${p.month}`] = p.price_per_gram; });
+    const getGoldPrice = (year, month) => {
+      if (goldPriceMap[`${year}-${month}`]) return goldPriceMap[`${year}-${month}`];
+      let latest = 0;
+      for (const p of goldPrices) {
+        if (p.year < year || (p.year === year && p.month <= month)) latest = p.price_per_gram;
+      }
+      return latest;
+    };
+
+    consolidated.forEach(row => {
+      let goldGrams = 0, goldPurchaseValue = 0;
+      goldEntries.forEach(g => {
+        if (g.purchase_year < row.year || (g.purchase_year === row.year && g.purchase_month <= row.month)) {
+          goldGrams += g.grams;
+          goldPurchaseValue += g.purchase_amount;
+        }
+      });
+      const goldCurrentValue = goldGrams * getGoldPrice(row.year, row.month);
+      row.invested += goldPurchaseValue;
+      row.currentValue += goldCurrentValue;
+      row.interest = row.currentValue - row.invested;
+      row.netWorth = row.currentValue - row.debt;
+    });
+
+    for (const member of members) {
+      const memberGold = goldEntries.filter(g => g.family_member_id === member.id);
+      if (memberGold.length === 0) continue;
+      const memberTrend = allTrends[member.id] || [];
+      memberTrend.forEach(row => {
+        let goldGrams = 0, goldPurchaseValue = 0;
+        memberGold.forEach(g => {
+          if (g.purchase_year < row.year || (g.purchase_year === row.year && g.purchase_month <= row.month)) {
+            goldGrams += g.grams;
+            goldPurchaseValue += g.purchase_amount;
+          }
+        });
+        const goldCurrentValue = goldGrams * getGoldPrice(row.year, row.month);
+        row.invested += goldPurchaseValue;
+        row.currentValue += goldCurrentValue;
+        row.interest = row.currentValue - row.invested;
+        row.netWorth = row.currentValue - row.debt;
+      });
+    }
+
     res.json({ members, trends: allTrends, consolidated });
   } catch (err) {
     res.status(500).json({ error: err.message });
