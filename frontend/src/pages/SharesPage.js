@@ -35,7 +35,7 @@ function SharesPage() {
 
   const fetchMembers = useCallback(async () => {
     try {
-      const res = await api.get('/entries/family-members');
+      const res = await api.get('/entries/members');
       setMembers(res.data);
     } catch (err) { console.error(err); }
   }, []);
