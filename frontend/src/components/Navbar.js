@@ -1,10 +1,16 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import api from '../utils/api';
 
 function Navbar() {
   const { logout } = useAuth();
   const location = useLocation();
+  const [version, setVersion] = useState('');
+
+  useEffect(() => {
+    api.get('/version').then(res => setVersion(res.data.version)).catch(() => {});
+  }, []);
 
   const isActive = (path) => location.pathname === path ? 'nav-link active' : 'nav-link';
 
@@ -18,6 +24,7 @@ function Navbar() {
             <path d="M2 12l10 5 10-5" />
           </svg>
           Family Net Worth
+          {version && <span style={{ fontSize: '0.6rem', color: 'var(--gray-400)', marginLeft: '0.5rem', fontWeight: '400' }}>v{version}</span>}
         </Link>
         <ul className="navbar-nav">
           <li><Link to="/" className={isActive('/')}>Dashboard</Link></li>

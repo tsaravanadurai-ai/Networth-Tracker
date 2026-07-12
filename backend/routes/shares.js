@@ -117,11 +117,15 @@ router.delete('/holdings/:id', async (req, res) => {
 router.post('/import-holdings', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const { family_member_id } = req.body;
-    if (!family_member_id) return res.status(400).json({ error: 'Member is required' });
+    const { family_member_id } = req.body; // optional now
 
     const workbook = XLSX.readFile(req.file.path);
     const db = getDb();
+    const memberMap = await getMemberMap(db);
+    // Get first member as fallback
+    const firstMember = (await db.execute('SELECT id FROM family_members ORDER BY id LIMIT 1')).rows;
+    const defaultMemberId = family_member_id ? parseInt(family_member_id) : (firstMember.length > 0 ? firstMember[0].id : 1);
+
     let totalImported = 0;
     const skippedSheets = [];
 
@@ -132,11 +136,28 @@ router.post('/import-holdings', upload.single('file'), async (req, res) => {
       const sheet = workbook.Sheets[sheetName];
       const data = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
-      // Delete existing entries for this member/month before importing
-      await db.execute({
-        sql: 'DELETE FROM share_holdings WHERE family_member_id = ? AND year = ? AND month = ?',
-        args: [parseInt(family_member_id), parsed.year, parsed.month]
-      });
+      // Check if sheet has a Member column
+      const hasMemberCol = data.length > 0 && (data[0].hasOwnProperty('Member') || data[0].hasOwnProperty('member') || data[0].hasOwnProperty('Account') || data[0].hasOwnProperty('account'));
+
+      if (hasMemberCol) {
+        // Delete all entries for this month (all members) since sheet has member info
+        await db.execute({
+          sql: 'DELETE FROM share_holdings WHERE year = ? AND month = ?',
+          args: [parsed.year, parsed.month]
+        });
+      } else if (family_member_id) {
+        // Delete existing entries for the selected member/month
+        await db.execute({
+          sql: 'DELETE FROM share_holdings WHERE family_member_id = ? AND year = ? AND month = ?',
+          args: [defaultMemberId, parsed.year, parsed.month]
+        });
+      } else {
+        // No member col, no member selected — delete all for this month
+        await db.execute({
+          sql: 'DELETE FROM share_holdings WHERE year = ? AND month = ?',
+          args: [parsed.year, parsed.month]
+        });
+      }
 
       for (const row of data) {
         const instrument = (row['Instrument'] || row['instrument'] || '').toString().trim();
@@ -149,18 +170,26 @@ router.post('/import-holdings', upload.single('file'), async (req, res) => {
         const curVal = parseFloat(row['Cur. val'] || row['Cur val'] || row['current_value'] || 0) || 0;
         const pnl = parseFloat(row['P&L'] || row['pnl'] || 0) || 0;
         let pnlPct = row['Overall %'] || row['overall_percent'] || 0;
-        // Handle both decimal (0.0547 = 5.47%) and percentage (15.48) formats
         pnlPct = parseFloat(pnlPct) || 0;
         if (Math.abs(pnlPct) < 1 && pnlPct !== 0) pnlPct = pnlPct * 100;
 
         if (qty === 0 && invested === 0) continue;
+
+        // Resolve member: from row column > from form > default
+        let rowMemberId = defaultMemberId;
+        if (hasMemberCol) {
+          const memberName = (row['Member'] || row['member'] || row['Account'] || row['account'] || '').toString().trim().toLowerCase();
+          if (memberName && memberMap[memberName]) {
+            rowMemberId = memberMap[memberName];
+          }
+        }
 
         const finalInvested = invested > 0 ? invested : qty * avgCost;
         const finalCurVal = curVal > 0 ? curVal : qty * ltp;
 
         await db.execute({
           sql: 'INSERT INTO share_holdings (family_member_id, year, month, instrument, quantity, avg_cost, ltp, invested, current_value, pnl, pnl_percent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          args: [parseInt(family_member_id), parsed.year, parsed.month, instrument, qty, avgCost, ltp, finalInvested, finalCurVal, pnl, parseFloat(pnlPct.toFixed(2))]
+          args: [rowMemberId, parsed.year, parsed.month, instrument, qty, avgCost, ltp, finalInvested, finalCurVal, pnl, parseFloat(pnlPct.toFixed(2))]
         });
         totalImported++;
       }
@@ -337,12 +366,17 @@ router.get('/export', async (req, res) => {
 router.get('/summary', async (req, res) => {
   try {
     const db = getDb();
+    const { divYear } = req.query; // optional year filter for dividend reports
     const members = (await db.execute('SELECT * FROM family_members')).rows;
 
     // Get latest month with holdings data
     const latestMonth = (await db.execute('SELECT year, month FROM share_holdings ORDER BY year DESC, month DESC LIMIT 1')).rows;
     const latestYear = latestMonth.length > 0 ? latestMonth[0].year : new Date().getFullYear();
     const latestMon = latestMonth.length > 0 ? latestMonth[0].month : new Date().getMonth() + 1;
+
+    // Build dividend year filter clause
+    const divYearFilter = divYear ? " AND CAST(SUBSTR(date, 1, 4) AS INTEGER) = " + parseInt(divYear) : "";
+    const divYearFilterWhere = divYear ? " WHERE CAST(SUBSTR(date, 1, 4) AS INTEGER) = " + parseInt(divYear) : "";
 
     // Per-member summary for latest month
     const memberSummaries = [];
@@ -352,10 +386,10 @@ router.get('/summary', async (req, res) => {
         args: [m.id, latestYear, latestMon]
       })).rows[0];
 
-      const totalDividends = (await db.execute({
-        sql: 'SELECT COALESCE(SUM(amount), 0) as total FROM dividends WHERE family_member_id = ?',
-        args: [m.id]
-      })).rows[0].total;
+      const divSql = divYear
+        ? { sql: "SELECT COALESCE(SUM(amount), 0) as total FROM dividends WHERE family_member_id = ? AND CAST(SUBSTR(date, 1, 4) AS INTEGER) = ?", args: [m.id, parseInt(divYear)] }
+        : { sql: 'SELECT COALESCE(SUM(amount), 0) as total FROM dividends WHERE family_member_id = ?', args: [m.id] };
+      const totalDividends = (await db.execute(divSql)).rows[0].total;
 
       if (holdings.stockCount > 0 || totalDividends > 0) {
         memberSummaries.push({
@@ -379,13 +413,13 @@ router.get('/summary', async (req, res) => {
       pnlPercent: r.invested > 0 ? parseFloat(((r.pnl / r.invested) * 100).toFixed(2)) : 0
     }));
 
-    // Dividend by month
+    // Dividend by month (filtered by year if set)
     const dividendTrend = (await db.execute(
-      "SELECT CAST(SUBSTR(date, 1, 4) AS INTEGER) as year, CAST(SUBSTR(date, 6, 2) AS INTEGER) as month, SUM(amount) as total FROM dividends GROUP BY year, month ORDER BY year ASC, month ASC"
+      "SELECT CAST(SUBSTR(date, 1, 4) AS INTEGER) as year, CAST(SUBSTR(date, 6, 2) AS INTEGER) as month, SUM(amount) as total FROM dividends" + divYearFilterWhere + " GROUP BY year, month ORDER BY year ASC, month ASC"
     )).rows.map(r => ({ ...r, label: `${getMonthName(r.month)} ${r.year}` }));
 
-    // Total dividends
-    const totalDividends = (await db.execute('SELECT COALESCE(SUM(amount), 0) as total FROM dividends')).rows[0].total;
+    // Total dividends (filtered)
+    const totalDividends = (await db.execute('SELECT COALESCE(SUM(amount), 0) as total FROM dividends' + divYearFilterWhere)).rows[0].total;
 
     // Top holdings (latest month)
     const topHoldings = (await db.execute({
@@ -393,16 +427,15 @@ router.get('/summary', async (req, res) => {
       args: [latestYear, latestMon]
     })).rows;
 
-    // Top dividend stocks (Company Split)
+    // Top dividend stocks / Company Split (filtered)
     const topDivStocks = (await db.execute(
-      'SELECT stock_name, SUM(amount) as total, COUNT(*) as count FROM dividends GROUP BY stock_name ORDER BY SUM(amount) DESC'
+      'SELECT stock_name, SUM(amount) as total, COUNT(*) as count FROM dividends' + divYearFilterWhere + ' GROUP BY stock_name ORDER BY SUM(amount) DESC'
     )).rows;
 
-    // Quarterly dividend data
+    // Quarterly dividend data (filtered)
     const quarterlyDiv = (await db.execute(
-      "SELECT CAST(SUBSTR(date, 1, 4) AS INTEGER) as year, CAST(SUBSTR(date, 6, 2) AS INTEGER) as month, SUM(amount) as total FROM dividends GROUP BY year, month ORDER BY year ASC, month ASC"
+      "SELECT CAST(SUBSTR(date, 1, 4) AS INTEGER) as year, CAST(SUBSTR(date, 6, 2) AS INTEGER) as month, SUM(amount) as total FROM dividends" + divYearFilterWhere + " GROUP BY year, month ORDER BY year ASC, month ASC"
     )).rows;
-    // Group into quarters
     const quarterMap = {};
     quarterlyDiv.forEach(r => {
       const q = Math.ceil(r.month / 3);
@@ -411,14 +444,17 @@ router.get('/summary', async (req, res) => {
     });
     const quarterlyTrend = Object.entries(quarterMap).map(([label, total]) => ({ label, total }));
 
-    // Yearly dividend data
+    // Yearly dividend data (always all years for the yearly chart)
     const yearlyDiv = (await db.execute(
       "SELECT CAST(SUBSTR(date, 1, 4) AS INTEGER) as year, SUM(amount) as total FROM dividends GROUP BY year ORDER BY year ASC"
     )).rows;
 
-    // Accountwise yearly split (for stacked bar)
+    // Available dividend years
+    const dividendYears = yearlyDiv.map(r => r.year);
+
+    // Accountwise yearly split (filtered)
     const accountYearlyDiv = (await db.execute(
-      "SELECT fm.name as member_name, fm.color as member_color, CAST(SUBSTR(d.date, 1, 4) AS INTEGER) as year, SUM(d.amount) as total FROM dividends d JOIN family_members fm ON d.family_member_id = fm.id GROUP BY fm.name, fm.color, year ORDER BY year ASC"
+      "SELECT fm.name as member_name, fm.color as member_color, CAST(SUBSTR(d.date, 1, 4) AS INTEGER) as year, SUM(d.amount) as total FROM dividends d JOIN family_members fm ON d.family_member_id = fm.id" + (divYear ? " WHERE CAST(SUBSTR(d.date, 1, 4) AS INTEGER) = " + parseInt(divYear) : "") + " GROUP BY fm.name, fm.color, year ORDER BY year ASC"
     )).rows;
 
     res.json({
@@ -431,6 +467,7 @@ router.get('/summary', async (req, res) => {
       topDivStocks,
       quarterlyTrend,
       yearlyDiv,
+      dividendYears,
       accountYearlyDiv,
       totalInvested: memberSummaries.reduce((s, m) => s + m.invested, 0),
       totalCurrent: memberSummaries.reduce((s, m) => s + m.currentValue, 0),

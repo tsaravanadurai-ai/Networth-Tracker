@@ -33,6 +33,9 @@ function SharesPage() {
   const [importMemberId, setImportMemberId] = useState('');
   const [showImportDividends, setShowImportDividends] = useState(false);
 
+  // Dividend year filter (for dividends tab and reports tab)
+  const [divReportYear, setDivReportYear] = useState('all');
+
   const fetchMembers = useCallback(async () => {
     try {
       const res = await api.get('/entries/members');
@@ -63,20 +66,24 @@ function SharesPage() {
     try {
       const params = {};
       if (memberFilter !== 'all') params.member_id = memberFilter;
+      if (divReportYear !== 'all') params.year = divReportYear;
       const res = await api.get('/shares/dividends', { params });
       setDividends(res.data);
     } catch (err) { console.error(err); }
     setLoading(false);
-  }, [memberFilter]);
+  }, [memberFilter, divReportYear]);
 
   const fetchSummary = useCallback(async () => {
     try {
-      const res = await api.get('/shares/summary');
+      const params = {};
+      if (divReportYear !== 'all') params.divYear = divReportYear;
+      const res = await api.get('/shares/summary', { params });
       setSummary(res.data);
     } catch (err) { console.error(err); }
-  }, []);
+  }, [divReportYear]);
 
-  useEffect(() => { fetchMembers(); fetchAvailableMonths(); fetchSummary(); }, [fetchMembers, fetchAvailableMonths, fetchSummary]);
+  useEffect(() => { fetchMembers(); fetchAvailableMonths(); }, [fetchMembers, fetchAvailableMonths]);
+  useEffect(() => { fetchSummary(); }, [fetchSummary]);
   useEffect(() => { if (activeTab === 'holdings') fetchHoldings(); }, [activeTab, fetchHoldings]);
   useEffect(() => { if (activeTab === 'dividends') fetchDividends(); }, [activeTab, fetchDividends]);
 
@@ -145,10 +152,10 @@ function SharesPage() {
   const handleImportHoldings = async (e) => {
     e.preventDefault();
     const fileInput = e.target.querySelector('input[type="file"]');
-    if (!fileInput.files[0] || !importMemberId) return showMsg('Select file and member');
+    if (!fileInput.files[0]) return showMsg('Select a file');
     const formData = new FormData();
     formData.append('file', fileInput.files[0]);
-    formData.append('family_member_id', importMemberId);
+    if (importMemberId) formData.append('family_member_id', importMemberId);
     try {
       const res = await api.post('/shares/import-holdings', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       showMsg(res.data.message);
@@ -273,14 +280,14 @@ function SharesPage() {
                 <p style={{ fontSize: '0.85rem', color: 'var(--gray-500)', marginBottom: '1rem' }}>
                   Upload your Zerodha Kite export Excel. Each sheet tab should be named like "Jul 2026", "Mar 2025" etc.
                   Columns: Instrument, Qty., Avg. cost, LTP, Invested, Cur. val, P&L, Overall %.
-                  Select which member this data belongs to.
+                  If the sheet has a "Member" column, it will be auto-detected. Otherwise select a member below (optional — defaults to first member).
                 </p>
                 <form onSubmit={handleImportHoldings}>
                   <div className="form-row" style={{ marginBottom: '1rem' }}>
                     <div className="form-group">
-                      <label className="form-label">Member</label>
-                      <select value={importMemberId} onChange={e => setImportMemberId(e.target.value)} className="form-control" required>
-                        <option value="">Select member</option>
+                      <label className="form-label">Member (optional)</label>
+                      <select value={importMemberId} onChange={e => setImportMemberId(e.target.value)} className="form-control">
+                        <option value="">Auto-detect from sheet</option>
                         {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                       </select>
                     </div>
@@ -386,6 +393,11 @@ function SharesPage() {
       {activeTab === 'dividends' && (
         <div>
           <div className="month-selector">
+            <label>Year:</label>
+            <select value={divReportYear} onChange={e => setDivReportYear(e.target.value)}>
+              <option value="all">All Years</option>
+              {(summary?.dividendYears || []).map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
             <label>Member:</label>
             <select value={memberFilter} onChange={e => setMemberFilter(e.target.value)}>
               <option value="all">All Members</option>
@@ -508,6 +520,14 @@ function SharesPage() {
       {/* ====== REPORTS TAB ====== */}
       {activeTab === 'reports' && summary && (
         <div>
+          <div className="month-selector">
+            <label>Dividend Year:</label>
+            <select value={divReportYear} onChange={e => setDivReportYear(e.target.value)}>
+              <option value="all">All Years</option>
+              {(summary?.dividendYears || []).map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+
           {/* Summary Stats */}
           <div className="stats-grid" style={{ marginBottom: '1.5rem' }}>
             <div className="stat-card">

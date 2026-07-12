@@ -13,6 +13,8 @@ const sharesRoutes = require('./routes/shares');
 
 const { startGoldPriceCron } = require('./cron/goldPriceFetcher');
 
+const APP_VERSION = require('./package.json').version;
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -33,6 +35,10 @@ app.use('/api/excel', excelRoutes);
 app.use('/api/gold', goldRoutes);
 app.use('/api/extras', extrasRoutes);
 app.use('/api/shares', sharesRoutes);
+
+app.get('/api/version', (req, res) => {
+  res.json({ version: APP_VERSION });
+});
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
