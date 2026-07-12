@@ -23,6 +23,7 @@ function Navbar() {
           <li><Link to="/" className={isActive('/')}>Dashboard</Link></li>
           <li><Link to="/entry" className={isActive('/entry')}>Monthly Entry</Link></li>
           <li><Link to="/reports" className={isActive('/reports')}>Reports</Link></li>
+          <li><Link to="/shares" className={isActive('/shares')}>Shares</Link></li>
           <li><Link to="/extras" className={isActive('/extras')}>Gold/Bank/Debt</Link></li>
           <li><Link to="/gold-prices" className={isActive('/gold-prices')}>Gold Prices</Link></li>
           <li><button className="btn-logout" onClick={logout}>Logout</button></li>

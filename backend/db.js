@@ -105,6 +105,34 @@ async function initializeDatabase() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(month, year)
     );
+
+    CREATE TABLE IF NOT EXISTS share_holdings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      family_member_id INTEGER NOT NULL,
+      year INTEGER NOT NULL,
+      month INTEGER NOT NULL,
+      instrument TEXT NOT NULL,
+      quantity REAL DEFAULT 0,
+      avg_cost REAL DEFAULT 0,
+      ltp REAL DEFAULT 0,
+      invested REAL DEFAULT 0,
+      current_value REAL DEFAULT 0,
+      pnl REAL DEFAULT 0,
+      pnl_percent REAL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (family_member_id) REFERENCES family_members(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS dividends (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      family_member_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      stock_name TEXT NOT NULL,
+      amount REAL DEFAULT 0,
+      notes TEXT DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (family_member_id) REFERENCES family_members(id)
+    );
   `);
 
   const memberCount = await db.execute('SELECT COUNT(*) as count FROM family_members');

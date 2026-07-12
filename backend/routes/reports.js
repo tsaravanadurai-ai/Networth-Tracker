@@ -59,13 +59,21 @@ router.get('/summary/:year/:month', async (req, res) => {
       const goldGrams = memberGold.rows[0].totalGrams || 0;
       const goldPurchaseValue = memberGold.rows[0].totalPurchase || 0;
 
+      // Get share holdings for this member (for selected month)
+      const memberShares = await db.execute({
+        sql: 'SELECT COALESCE(SUM(invested), 0) as sharesInvested, COALESCE(SUM(current_value), 0) as sharesCurrent FROM share_holdings WHERE family_member_id = ? AND year = ? AND month = ?',
+        args: [member.id, year, month]
+      });
+      const sharesInvested = memberShares.rows[0].sharesInvested || 0;
+      const sharesCurrent = memberShares.rows[0].sharesCurrent || 0;
+
       const totalInterest = totalCurrentValue - totalInvested;
       const netWorth = totalCurrentValue - totalDebt;
       const interestPercentage = totalInvested > 0 ? parseFloat(((totalInterest / totalInvested) * 100).toFixed(2)) : 0;
 
       summary.push({
         member, totalInvested, totalCurrentValue, totalInterest, totalDebt, netWorth, interestPercentage,
-        categoryBreakdown, entryCount: entries.length, goldGrams, goldPurchaseValue
+        categoryBreakdown, entryCount: entries.length, goldGrams, goldPurchaseValue, sharesInvested, sharesCurrent
       });
     }
 
@@ -101,7 +109,16 @@ router.get('/summary/:year/:month', async (req, res) => {
     consolidated.goldPurchaseValue = totalGoldPurchase;
     consolidated.goldCurrentValue = goldCurrentValue;
     consolidated.goldPricePerGram = goldPricePerGram;
-    consolidated.totalNetWorth = consolidated.netWorth + bankReserves.rows[0].total + debtGiven.rows[0].total + goldCurrentValue;
+    // Share holdings totals for this month
+    const shareHoldings = await db.execute({
+      sql: 'SELECT COALESCE(SUM(invested), 0) as totalSharesInvested, COALESCE(SUM(current_value), 0) as totalSharesCurrent FROM share_holdings WHERE year = ? AND month = ?',
+      args: [year, month]
+    });
+    consolidated.sharesInvested = shareHoldings.rows[0].totalSharesInvested || 0;
+    consolidated.sharesCurrent = shareHoldings.rows[0].totalSharesCurrent || 0;
+    consolidated.sharesPnl = consolidated.sharesCurrent - consolidated.sharesInvested;
+
+    consolidated.totalNetWorth = consolidated.netWorth + bankReserves.rows[0].total + debtGiven.rows[0].total + goldCurrentValue + consolidated.sharesCurrent;
 
     res.json({ summary, consolidated, month: parseInt(month), year: parseInt(year) });
   } catch (err) {
@@ -247,6 +264,65 @@ router.get('/trend-all', async (req, res) => {
         row.interest = row.currentValue - row.invested;
         row.netWorth = row.currentValue - row.debt;
       });
+    }
+
+    // Add share holdings to each month in consolidated trend
+    const shareHoldingsAll = (await db.execute('SELECT family_member_id, year, month, SUM(invested) as invested, SUM(current_value) as current_value FROM share_holdings GROUP BY family_member_id, year, month')).rows;
+
+    const sharesByMonth = {};
+    shareHoldingsAll.forEach(s => {
+      const key = `${s.year}-${s.month}`;
+      if (!sharesByMonth[key]) sharesByMonth[key] = { invested: 0, currentValue: 0 };
+      sharesByMonth[key].invested += s.invested;
+      sharesByMonth[key].currentValue += s.current_value;
+    });
+
+    consolidated.forEach(row => {
+      const key = `${row.year}-${row.month}`;
+      const shares = sharesByMonth[key];
+      if (shares) {
+        row.invested += shares.invested;
+        row.currentValue += shares.currentValue;
+        row.interest = row.currentValue - row.invested;
+        row.netWorth = row.currentValue - row.debt;
+      }
+    });
+
+    // Also add shares that exist in months not yet in consolidated
+    Object.entries(sharesByMonth).forEach(([key, shares]) => {
+      if (!consolidated.find(c => `${c.year}-${c.month}` === key)) {
+        const [y, m] = key.split('-').map(Number);
+        consolidated.push({
+          year: y, month: m, label: `${getMonthName(m)} ${y}`,
+          invested: shares.invested, currentValue: shares.currentValue,
+          interest: shares.currentValue - shares.invested, debt: 0,
+          netWorth: shares.currentValue
+        });
+      }
+    });
+    consolidated.sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month);
+
+    // Add shares to per-member trends
+    for (const member of members) {
+      const memberShares = shareHoldingsAll.filter(s => s.family_member_id === member.id);
+      if (memberShares.length === 0) continue;
+      const memberTrend = allTrends[member.id] || [];
+      memberShares.forEach(s => {
+        const existing = memberTrend.find(r => r.year === s.year && r.month === s.month);
+        if (existing) {
+          existing.invested += s.invested;
+          existing.currentValue += s.current_value;
+          existing.interest = existing.currentValue - existing.invested;
+          existing.netWorth = existing.currentValue - existing.debt;
+        } else {
+          memberTrend.push({
+            year: s.year, month: s.month, label: `${getMonthName(s.month)} ${s.year}`,
+            invested: s.invested, currentValue: s.current_value,
+            interest: s.current_value - s.invested, debt: 0, netWorth: s.current_value
+          });
+        }
+      });
+      memberTrend.sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month);
     }
 
     res.json({ members, trends: allTrends, consolidated });

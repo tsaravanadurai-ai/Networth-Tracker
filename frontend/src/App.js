@@ -9,6 +9,7 @@ import EntryPage from './pages/EntryPage';
 import ReportsPage from './pages/ReportsPage';
 import GoldPricePage from './pages/GoldPricePage';
 import ExtrasPage from './pages/ExtrasPage';
+import SharesPage from './pages/SharesPage';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -68,6 +69,14 @@ function AppRoutes() {
           <div className="app-container">
             <Navbar />
             <main className="main-content"><GoldPricePage /></main>
+          </div>
+        </ProtectedRoute>
+      } />
+      <Route path="/shares" element={
+        <ProtectedRoute>
+          <div className="app-container">
+            <Navbar />
+            <main className="main-content"><SharesPage /></main>
           </div>
         </ProtectedRoute>
       } />

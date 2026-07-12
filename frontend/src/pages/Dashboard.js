@@ -33,15 +33,17 @@ function Dashboard() {
   if (!summary) return <div className="empty-state"><h3>No data available</h3><p>Start by adding monthly entries.</p></div>;
 
   const { consolidated } = summary;
-  const membersWithData = summary.summary.filter(s => s.entryCount > 0 || (s.goldGrams && s.goldGrams > 0));
+  const membersWithData = summary.summary.filter(s => s.entryCount > 0 || (s.goldGrams && s.goldGrams > 0) || (s.sharesCurrent && s.sharesCurrent > 0));
 
   const getGoldValue = (s) => s.goldGrams > 0 && consolidated.goldPricePerGram ? s.goldGrams * consolidated.goldPricePerGram : 0;
   const getGoldPurchase = (s) => s.goldPurchaseValue || 0;
+  const getSharesCurrent = (s) => s.sharesCurrent || 0;
+  const getSharesInvested = (s) => s.sharesInvested || 0;
 
   const doughnutData = {
     labels: membersWithData.map(s => s.member.name),
     datasets: [{
-      data: membersWithData.map(s => s.totalCurrentValue + getGoldValue(s)),
+      data: membersWithData.map(s => s.totalCurrentValue + getGoldValue(s) + getSharesCurrent(s)),
       backgroundColor: membersWithData.map(s => s.member.color),
       borderWidth: 2,
       borderColor: '#fff',
@@ -53,12 +55,12 @@ function Dashboard() {
     datasets: [
       {
         label: 'Invested',
-        data: membersWithData.map(s => s.totalInvested + getGoldPurchase(s)),
+        data: membersWithData.map(s => s.totalInvested + getGoldPurchase(s) + getSharesInvested(s)),
         backgroundColor: 'rgba(79, 70, 229, 0.7)',
       },
       {
         label: 'Current Value',
-        data: membersWithData.map(s => s.totalCurrentValue + getGoldValue(s)),
+        data: membersWithData.map(s => s.totalCurrentValue + getGoldValue(s) + getSharesCurrent(s)),
         backgroundColor: 'rgba(16, 185, 129, 0.7)',
       }
     ]
@@ -134,6 +136,15 @@ function Dashboard() {
             <div className="stat-value">{formatCurrency(consolidated.debtGiven)}</div>
           </div>
         )}
+        {consolidated.sharesCurrent > 0 && (
+          <div className="stat-card" style={{ borderLeft: '4px solid #6366F1' }}>
+            <div className="stat-label">Shares Portfolio</div>
+            <div className="stat-value" style={{ color: '#6366F1' }}>{formatCurrency(consolidated.sharesCurrent)}</div>
+            <div className="stat-change" style={{ fontSize: '0.75rem', color: consolidated.sharesPnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+              P&L: {formatCurrency(consolidated.sharesPnl)} ({consolidated.sharesInvested > 0 ? ((consolidated.sharesPnl / consolidated.sharesInvested) * 100).toFixed(1) : 0}%)
+            </div>
+          </div>
+        )}
         {consolidated.goldGrams > 0 && (
           <div className="stat-card" style={{ borderLeft: '4px solid #F59E0B' }}>
             <div className="stat-label">Gold</div>
@@ -149,7 +160,7 @@ function Dashboard() {
             {formatCurrency(consolidated.totalNetWorth || consolidated.netWorth)}
           </div>
           <div className="stat-change" style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>
-            Investments + Bank + Receivables + Gold - Debt
+            Investments + Bank + Receivables + Gold + Shares - Debt
           </div>
         </div>
       </div>
@@ -177,9 +188,10 @@ function Dashboard() {
 
       <h2 style={{ marginBottom: '1rem', fontSize: '1.25rem', fontWeight: '600' }}>Individual Net Worth</h2>
       <div className="stats-grid">
-        {summary.summary.map(({ member, totalInvested, totalCurrentValue, totalInterest, interestPercentage, entryCount, goldGrams, goldPurchaseValue }) => {
+        {summary.summary.map(({ member, totalInvested, totalCurrentValue, totalInterest, interestPercentage, entryCount, goldGrams, goldPurchaseValue, sharesInvested, sharesCurrent }) => {
           const goldValue = goldGrams > 0 && consolidated.goldPricePerGram ? goldGrams * consolidated.goldPricePerGram : 0;
-          const memberNetWorth = totalCurrentValue - 0 + goldValue;
+          const sharesVal = sharesCurrent || 0;
+          const memberNetWorth = totalCurrentValue + goldValue + sharesVal;
           return (
           <Link to={`/member/${member.id}`} key={member.id} className="member-summary-card">
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.25rem' }}>
@@ -187,7 +199,7 @@ function Dashboard() {
               <span className="member-name">{member.name}</span>
             </div>
             <div className="member-label">{member.label}</div>
-            {entryCount > 0 || goldGrams > 0 ? (
+            {entryCount > 0 || goldGrams > 0 || sharesVal > 0 ? (
               <div className="member-stats">
                 <div className="member-stat-item">
                   <div className="label">Invested</div>
@@ -222,6 +234,14 @@ function Dashboard() {
                     <div className="label">Gold Value</div>
                     <div className="value" style={{ color: '#F59E0B' }}>
                       {formatCurrency(goldValue)}
+                    </div>
+                  </div>
+                )}
+                {sharesVal > 0 && (
+                  <div className="member-stat-item">
+                    <div className="label">Shares</div>
+                    <div className="value" style={{ color: '#6366F1' }}>
+                      {formatCurrency(sharesVal)}
                     </div>
                   </div>
                 )}
