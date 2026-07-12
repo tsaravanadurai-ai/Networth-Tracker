@@ -18,6 +18,13 @@ async function getMemberMap(db) {
   return map;
 }
 
+function formatVal(v) {
+  if (v >= 10000000) return (v / 10000000).toFixed(1) + 'Cr';
+  if (v >= 100000) return (v / 100000).toFixed(1) + 'L';
+  if (v >= 1000) return (v / 1000).toFixed(0) + 'K';
+  return String(v);
+}
+
 function getMonthName(m) {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return months[m - 1] || '';
@@ -186,10 +193,12 @@ router.post('/import-holdings', upload.single('file'), async (req, res) => {
 
         const finalInvested = invested > 0 ? invested : qty * avgCost;
         const finalCurVal = curVal > 0 ? curVal : qty * ltp;
+        const finalPnl = finalCurVal - finalInvested;
+        const finalPnlPct = finalInvested > 0 ? parseFloat(((finalPnl / finalInvested) * 100).toFixed(2)) : 0;
 
         await db.execute({
           sql: 'INSERT INTO share_holdings (family_member_id, year, month, instrument, quantity, avg_cost, ltp, invested, current_value, pnl, pnl_percent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          args: [rowMemberId, parsed.year, parsed.month, instrument, qty, avgCost, ltp, finalInvested, finalCurVal, pnl, parseFloat(pnlPct.toFixed(2))]
+          args: [rowMemberId, parsed.year, parsed.month, instrument, qty, avgCost, ltp, finalInvested, finalCurVal, finalPnl, finalPnlPct]
         });
         totalImported++;
       }
@@ -421,11 +430,42 @@ router.get('/summary', async (req, res) => {
     // Total dividends (filtered)
     const totalDividends = (await db.execute('SELECT COALESCE(SUM(amount), 0) as total FROM dividends' + divYearFilterWhere)).rows[0].total;
 
-    // Top holdings (latest month)
-    const topHoldings = (await db.execute({
-      sql: 'SELECT sh.instrument, SUM(sh.quantity) as qty, SUM(sh.invested) as invested, SUM(sh.current_value) as current_value, SUM(sh.pnl) as pnl FROM share_holdings sh WHERE sh.year = ? AND sh.month = ? GROUP BY sh.instrument ORDER BY SUM(sh.current_value) DESC LIMIT 10',
+    // All holdings grouped by instrument (latest month) - used for top holdings, company split, valuation distribution
+    const allHoldingsGrouped = (await db.execute({
+      sql: 'SELECT sh.instrument, SUM(sh.quantity) as qty, SUM(sh.invested) as invested, SUM(sh.current_value) as current_value, (SUM(sh.current_value) - SUM(sh.invested)) as pnl FROM share_holdings sh WHERE sh.year = ? AND sh.month = ? GROUP BY sh.instrument ORDER BY SUM(sh.current_value) DESC',
       args: [latestYear, latestMon]
     })).rows;
+
+    const topHoldings = allHoldingsGrouped.slice(0, 10);
+
+    // Valuation distribution - dynamic percentile-based buckets
+    const valuationBuckets = (() => {
+      if (!allHoldingsGrouped.length) return [];
+      const values = allHoldingsGrouped.map(h => h.current_value).sort((a, b) => a - b);
+      const max = values[values.length - 1];
+      // Generate dynamic thresholds based on data range
+      const thresholds = [];
+      const steps = [10000, 25000, 50000, 75000, 100000, 150000, 200000, 300000, 500000, 750000, 1000000, 1500000, 2000000, 3000000, 5000000, 10000000];
+      for (const t of steps) {
+        if (t <= max * 1.5) thresholds.push(t);
+      }
+      // Build buckets
+      const buckets = [];
+      for (let i = 0; i < thresholds.length; i++) {
+        const lower = i === 0 ? 0 : thresholds[i - 1];
+        const upper = thresholds[i];
+        const stocks = allHoldingsGrouped.filter(h => h.current_value > lower && h.current_value <= upper);
+        if (stocks.length > 0) {
+          buckets.push({ range: `${formatVal(lower)} - ${formatVal(upper)}`, count: stocks.length, stocks: stocks.map(s => s.instrument) });
+        }
+      }
+      // Above last threshold
+      const aboveLast = allHoldingsGrouped.filter(h => h.current_value > thresholds[thresholds.length - 1]);
+      if (aboveLast.length > 0) {
+        buckets.push({ range: `> ${formatVal(thresholds[thresholds.length - 1])}`, count: aboveLast.length, stocks: aboveLast.map(s => s.instrument) });
+      }
+      return buckets;
+    })();
 
     // Top dividend stocks / Company Split (filtered)
     const topDivStocks = (await db.execute(
@@ -464,6 +504,8 @@ router.get('/summary', async (req, res) => {
       dividendTrend,
       totalDividends,
       topHoldings,
+      allHoldingsGrouped,
+      valuationBuckets,
       topDivStocks,
       quarterlyTrend,
       yearlyDiv,

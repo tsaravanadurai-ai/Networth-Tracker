@@ -611,6 +611,97 @@ function SharesPage() {
             </div>
           )}
 
+          {/* Holdings Company Split - Doughnut */}
+          {summary.allHoldingsGrouped?.length > 0 && (
+            <div className="grid-2" style={{ marginBottom: '1.5rem' }}>
+              <div className="card">
+                <div className="card-header"><h3>Holdings - Company Split</h3></div>
+                <div className="card-body">
+                  <div className="chart-container">
+                    <Doughnut data={{
+                      labels: summary.allHoldingsGrouped.map(s => s.instrument),
+                      datasets: [{
+                        data: summary.allHoldingsGrouped.map(s => s.current_value),
+                        backgroundColor: ['#4F46E5', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#F97316', '#84CC16', '#6366F1', '#14B8A6', '#D946EF', '#FB923C', '#A3E635', '#2DD4BF', '#C084FC', '#FB7185', '#FBBF24', '#34D399', '#818CF8', '#0EA5E9', '#E11D48', '#65A30D', '#7C3AED', '#0891B2', '#BE185D', '#CA8A04', '#059669', '#4338CA', '#DB2777'],
+                        borderWidth: 1, borderColor: '#fff'
+                      }]
+                    }} options={{
+                      responsive: true, maintainAspectRatio: false,
+                      plugins: {
+                        legend: { position: 'left', labels: { font: { size: 10 }, boxWidth: 12, padding: 4, generateLabels: (chart) => {
+                          const data = chart.data;
+                          const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+                          return data.labels.map((label, i) => ({
+                            text: `${((data.datasets[0].data[i] / total) * 100).toFixed(1)}% ${label}`,
+                            fillStyle: data.datasets[0].backgroundColor[i % 30],
+                            hidden: false, index: i
+                          }));
+                        } } },
+                        tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ₹${ctx.raw.toLocaleString('en-IN')}` } }
+                      }
+                    }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Valuation Distribution */}
+              {summary.valuationBuckets?.length > 0 && (
+                <div className="card">
+                  <div className="card-header"><h3>Stock Valuation Distribution</h3></div>
+                  <div className="card-body">
+                    <div className="chart-container">
+                      <Bar data={{
+                        labels: summary.valuationBuckets.map(b => b.range),
+                        datasets: [{
+                          label: 'Number of Stocks',
+                          data: summary.valuationBuckets.map(b => b.count),
+                          backgroundColor: summary.valuationBuckets.map((_, i) => {
+                            const colors = ['#6366F1', '#8B5CF6', '#A78BFA', '#10B981', '#34D399', '#F59E0B', '#FBBF24', '#EC4899', '#F472B6', '#EF4444', '#06B6D4', '#14B8A6'];
+                            return colors[i % colors.length];
+                          }),
+                          borderRadius: 4
+                        }]
+                      }} options={{
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: {
+                          legend: { display: false },
+                          tooltip: { callbacks: { afterLabel: (ctx) => {
+                            const bucket = summary.valuationBuckets[ctx.dataIndex];
+                            return bucket.stocks.join(', ');
+                          } } }
+                        },
+                        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { ticks: { font: { size: 10 }, maxRotation: 45 } } }
+                      }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Valuation Distribution Table */}
+          {summary.valuationBuckets?.length > 0 && (
+            <div className="card" style={{ marginBottom: '1.5rem' }}>
+              <div className="card-header"><h3>Valuation Breakdown</h3></div>
+              <div className="card-body">
+                <div className="table-container">
+                  <table className="data-table">
+                    <thead><tr><th>Valuation Range</th><th style={{ textAlign: 'right' }}>Count</th><th>Stocks</th></tr></thead>
+                    <tbody>
+                      {summary.valuationBuckets.map((b, i) => (
+                        <tr key={i}>
+                          <td style={{ fontWeight: 500 }}>{b.range}</td>
+                          <td style={{ textAlign: 'right' }}>{b.count}</td>
+                          <td style={{ fontSize: '0.85rem', color: 'var(--gray-500)' }}>{b.stocks.join(', ')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Dividend Report Charts - 4 panel grid */}
           {summary.totalDividends > 0 && (
             <>
@@ -706,16 +797,21 @@ function SharesPage() {
                 <div className="card-body">
                   <div className="table-container">
                     <table className="data-table">
-                      <thead><tr><th>Stock</th><th style={{ textAlign: 'right' }}>Invested</th><th style={{ textAlign: 'right' }}>Current</th><th style={{ textAlign: 'right' }}>P&L</th></tr></thead>
+                      <thead><tr><th>Stock</th><th style={{ textAlign: 'right' }}>Invested</th><th style={{ textAlign: 'right' }}>Current</th><th style={{ textAlign: 'right' }}>P&L</th><th style={{ textAlign: 'right' }}>%</th></tr></thead>
                       <tbody>
-                        {summary.topHoldings.map((h, i) => (
-                          <tr key={i}>
-                            <td style={{ fontWeight: 500 }}>{h.instrument}</td>
-                            <td style={{ textAlign: 'right' }}>{formatCurrency(h.invested)}</td>
-                            <td style={{ textAlign: 'right' }}>{formatCurrency(h.current_value)}</td>
-                            <td style={{ textAlign: 'right', color: h.pnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatCurrency(h.pnl)}</td>
-                          </tr>
-                        ))}
+                        {summary.topHoldings.map((h, i) => {
+                          const pnl = h.current_value - h.invested;
+                          const pnlPct = h.invested > 0 ? ((pnl / h.invested) * 100).toFixed(1) : 0;
+                          return (
+                            <tr key={i}>
+                              <td style={{ fontWeight: 500 }}>{h.instrument}</td>
+                              <td style={{ textAlign: 'right' }}>{formatCurrency(h.invested)}</td>
+                              <td style={{ textAlign: 'right' }}>{formatCurrency(h.current_value)}</td>
+                              <td style={{ textAlign: 'right', color: pnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatCurrency(pnl)}</td>
+                              <td style={{ textAlign: 'right', color: pnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>{pnlPct}%</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
