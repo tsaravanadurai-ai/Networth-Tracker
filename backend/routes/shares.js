@@ -393,9 +393,32 @@ router.get('/summary', async (req, res) => {
       args: [latestYear, latestMon]
     })).rows;
 
-    // Top dividend stocks
+    // Top dividend stocks (Company Split)
     const topDivStocks = (await db.execute(
-      'SELECT stock_name, SUM(amount) as total, COUNT(*) as count FROM dividends GROUP BY stock_name ORDER BY SUM(amount) DESC LIMIT 10'
+      'SELECT stock_name, SUM(amount) as total, COUNT(*) as count FROM dividends GROUP BY stock_name ORDER BY SUM(amount) DESC'
+    )).rows;
+
+    // Quarterly dividend data
+    const quarterlyDiv = (await db.execute(
+      "SELECT CAST(SUBSTR(date, 1, 4) AS INTEGER) as year, CAST(SUBSTR(date, 6, 2) AS INTEGER) as month, SUM(amount) as total FROM dividends GROUP BY year, month ORDER BY year ASC, month ASC"
+    )).rows;
+    // Group into quarters
+    const quarterMap = {};
+    quarterlyDiv.forEach(r => {
+      const q = Math.ceil(r.month / 3);
+      const key = `Q${q} ${r.year}`;
+      quarterMap[key] = (quarterMap[key] || 0) + r.total;
+    });
+    const quarterlyTrend = Object.entries(quarterMap).map(([label, total]) => ({ label, total }));
+
+    // Yearly dividend data
+    const yearlyDiv = (await db.execute(
+      "SELECT CAST(SUBSTR(date, 1, 4) AS INTEGER) as year, SUM(amount) as total FROM dividends GROUP BY year ORDER BY year ASC"
+    )).rows;
+
+    // Accountwise yearly split (for stacked bar)
+    const accountYearlyDiv = (await db.execute(
+      "SELECT fm.name as member_name, fm.color as member_color, CAST(SUBSTR(d.date, 1, 4) AS INTEGER) as year, SUM(d.amount) as total FROM dividends d JOIN family_members fm ON d.family_member_id = fm.id GROUP BY fm.name, fm.color, year ORDER BY year ASC"
     )).rows;
 
     res.json({
@@ -406,6 +429,9 @@ router.get('/summary', async (req, res) => {
       totalDividends,
       topHoldings,
       topDivStocks,
+      quarterlyTrend,
+      yearlyDiv,
+      accountYearlyDiv,
       totalInvested: memberSummaries.reduce((s, m) => s + m.invested, 0),
       totalCurrent: memberSummaries.reduce((s, m) => s + m.currentValue, 0),
       totalPnl: memberSummaries.reduce((s, m) => s + m.pnl, 0)
