@@ -36,6 +36,10 @@ function SharesPage() {
   // Dividend year filter (for dividends tab and reports tab)
   const [divReportYear, setDivReportYear] = useState('all');
 
+  // Sorting state for holdings table
+  const [sortField, setSortField] = useState('current_value');
+  const [sortDir, setSortDir] = useState('desc');
+
   const fetchMembers = useCallback(async () => {
     try {
       const res = await api.get('/entries/members');
@@ -189,9 +193,36 @@ function SharesPage() {
     } catch (err) { showMsg('Export failed'); }
   };
 
+  // Enrich holdings with computed P&L
+  const enrichedHoldings = holdings.map(h => {
+    const pnl = h.current_value - h.invested;
+    const pnlPercent = h.invested > 0 ? parseFloat(((pnl / h.invested) * 100).toFixed(2)) : 0;
+    return { ...h, calcPnl: pnl, calcPnlPercent: pnlPercent };
+  });
+
+  // Sort holdings
+  const toggleSort = (field) => {
+    if (sortField === field) { setSortDir(d => d === 'asc' ? 'desc' : 'asc'); }
+    else { setSortField(field); setSortDir(field === 'instrument' ? 'asc' : 'desc'); }
+  };
+  const sortArrow = (field) => sortField === field ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+
+  const sortedHoldings = [...enrichedHoldings].sort((a, b) => {
+    let valA, valB;
+    switch (sortField) {
+      case 'instrument': valA = a.instrument.toLowerCase(); valB = b.instrument.toLowerCase(); return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      case 'invested': valA = a.invested; valB = b.invested; break;
+      case 'current_value': valA = a.current_value; valB = b.current_value; break;
+      case 'pnl': valA = a.calcPnl; valB = b.calcPnl; break;
+      case 'pnlPercent': valA = a.calcPnlPercent; valB = b.calcPnlPercent; break;
+      default: valA = a.current_value; valB = b.current_value;
+    }
+    return sortDir === 'asc' ? valA - valB : valB - valA;
+  });
+
   // Calc totals for current view
-  const totalInvested = holdings.reduce((s, h) => s + h.invested, 0);
-  const totalCurrent = holdings.reduce((s, h) => s + h.current_value, 0);
+  const totalInvested = enrichedHoldings.reduce((s, h) => s + h.invested, 0);
+  const totalCurrent = enrichedHoldings.reduce((s, h) => s + h.current_value, 0);
   const totalPnl = totalCurrent - totalInvested;
   const totalPnlPct = totalInvested > 0 ? ((totalPnl / totalInvested) * 100).toFixed(2) : 0;
 
@@ -263,12 +294,12 @@ function SharesPage() {
           </div>
 
           {/* Stats */}
-          {holdings.length > 0 && (
+          {sortedHoldings.length > 0 && (
             <div className="stats-grid" style={{ marginBottom: '1.5rem' }}>
               <div className="stat-card"><div className="stat-label">Invested</div><div className="stat-value">{formatCurrency(totalInvested)}</div></div>
               <div className="stat-card"><div className="stat-label">Current Value</div><div className="stat-value">{formatCurrency(totalCurrent)}</div></div>
               <div className="stat-card"><div className="stat-label">P&L</div><div className="stat-value" style={{ color: totalPnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatCurrency(totalPnl)} ({totalPnlPct}%)</div></div>
-              <div className="stat-card"><div className="stat-label">Stocks</div><div className="stat-value">{holdings.length}</div></div>
+              <div className="stat-card"><div className="stat-label">Stocks</div><div className="stat-value">{sortedHoldings.length}</div></div>
             </div>
           )}
 
@@ -348,7 +379,7 @@ function SharesPage() {
           )}
 
           {/* Holdings Table */}
-          {loading ? <p>Loading...</p> : holdings.length === 0 ? (
+          {loading ? <p>Loading...</p> : sortedHoldings.length === 0 ? (
             <div className="empty-state"><h3>No holdings for this month</h3><p>Add manually or import from Excel.</p></div>
           ) : (
             <div className="card">
@@ -357,13 +388,20 @@ function SharesPage() {
                   <table className="data-table">
                     <thead>
                       <tr>
-                        <th>Member</th><th>Instrument</th><th style={{ textAlign: 'right' }}>Qty</th><th style={{ textAlign: 'right' }}>Avg Cost</th>
-                        <th style={{ textAlign: 'right' }}>LTP</th><th style={{ textAlign: 'right' }}>Invested</th><th style={{ textAlign: 'right' }}>Current</th>
-                        <th style={{ textAlign: 'right' }}>P&L</th><th style={{ textAlign: 'right' }}>%</th><th>Actions</th>
+                        <th>Member</th>
+                        <th onClick={() => toggleSort('instrument')} style={{ cursor: 'pointer' }}>Instrument{sortArrow('instrument')}</th>
+                        <th style={{ textAlign: 'right' }}>Qty</th>
+                        <th style={{ textAlign: 'right' }}>Avg Cost</th>
+                        <th style={{ textAlign: 'right' }}>LTP</th>
+                        <th onClick={() => toggleSort('invested')} style={{ textAlign: 'right', cursor: 'pointer' }}>Invested{sortArrow('invested')}</th>
+                        <th onClick={() => toggleSort('current_value')} style={{ textAlign: 'right', cursor: 'pointer' }}>Current{sortArrow('current_value')}</th>
+                        <th onClick={() => toggleSort('pnl')} style={{ textAlign: 'right', cursor: 'pointer' }}>P&L{sortArrow('pnl')}</th>
+                        <th onClick={() => toggleSort('pnlPercent')} style={{ textAlign: 'right', cursor: 'pointer' }}>%{sortArrow('pnlPercent')}</th>
+                        <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {holdings.map(h => (
+                      {sortedHoldings.map(h => (
                         <tr key={h.id}>
                           <td><span className="member-dot" style={{ backgroundColor: h.member_color }}></span>{h.member_name}</td>
                           <td style={{ fontWeight: 500 }}>{h.instrument}</td>
@@ -372,8 +410,8 @@ function SharesPage() {
                           <td style={{ textAlign: 'right' }}>{formatCurrency(h.ltp)}</td>
                           <td style={{ textAlign: 'right' }}>{formatCurrency(h.invested)}</td>
                           <td style={{ textAlign: 'right' }}>{formatCurrency(h.current_value)}</td>
-                          <td style={{ textAlign: 'right', color: h.pnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatCurrency(h.pnl)}</td>
-                          <td style={{ textAlign: 'right', color: h.pnl_percent >= 0 ? 'var(--success)' : 'var(--danger)' }}>{h.pnl_percent}%</td>
+                          <td style={{ textAlign: 'right', color: h.calcPnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatCurrency(h.calcPnl)}</td>
+                          <td style={{ textAlign: 'right', color: h.calcPnlPercent >= 0 ? 'var(--success)' : 'var(--danger)' }}>{h.calcPnlPercent}%</td>
                           <td>
                             <button className="btn btn-secondary btn-sm" onClick={() => editHolding(h)} style={{ marginRight: '0.25rem' }}>Edit</button>
                             <button className="btn btn-danger btn-sm" onClick={() => deleteHolding(h.id)}>Del</button>

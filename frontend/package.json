@@ -1,6 +1,6 @@
 {
   "name": "family-networth-frontend",
-  "version": "12.0.0",
+  "version": "13.0.0",
   "private": true,
   "dependencies": {
     "react": "^18.2.0",

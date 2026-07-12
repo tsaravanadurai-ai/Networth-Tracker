@@ -1,6 +1,6 @@
 {
   "name": "family-networth-backend",
-  "version": "12.0.0",
+  "version": "13.0.0",
   "description": "Backend API for Family Net Worth Tracker",
   "main": "server.js",
   "scripts": {
