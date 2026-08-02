@@ -325,6 +325,17 @@ router.post('/dividends', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// PUT /shares/dividends/rename-stock - rename stock across all dividends (must be before :id route)
+router.put('/dividends/rename-stock', async (req, res) => {
+  try {
+    const db = getDb();
+    const { oldName, newName } = req.body;
+    if (!oldName || !newName) return res.status(400).json({ error: 'Both oldName and newName required' });
+    const result = await db.execute({ sql: 'UPDATE dividends SET stock_name = ? WHERE stock_name = ?', args: [newName.trim(), oldName.trim()] });
+    res.json({ message: `Renamed "${oldName}" → "${newName}" (${result.rowsAffected} entries updated)` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.put('/dividends/:id', async (req, res) => {
   try {
     const { family_member_id, date, stock_name, amount, notes } = req.body;
@@ -622,17 +633,6 @@ router.get('/stock-mismatches', async (req, res) => {
     const divNames = (await db.execute('SELECT DISTINCT stock_name as name, COUNT(*) as count FROM dividends GROUP BY stock_name ORDER BY stock_name')).rows;
     const mismatches = divNames.filter(d => !holdingNames.includes(d.name.toUpperCase().trim()));
     res.json({ mismatches, holdingNames: [...new Set((await db.execute('SELECT DISTINCT instrument as name FROM share_holdings ORDER BY instrument')).rows.map(r => r.name))] });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// PUT /shares/dividends/rename-stock - rename stock across all dividends
-router.put('/dividends/rename-stock', async (req, res) => {
-  try {
-    const db = getDb();
-    const { oldName, newName } = req.body;
-    if (!oldName || !newName) return res.status(400).json({ error: 'Both oldName and newName required' });
-    const result = await db.execute({ sql: 'UPDATE dividends SET stock_name = ? WHERE stock_name = ?', args: [newName.trim(), oldName.trim()] });
-    res.json({ message: `Renamed "${oldName}" → "${newName}" (${result.rowsAffected} entries updated)` });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
