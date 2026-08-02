@@ -471,7 +471,7 @@ router.get('/summary', async (req, res) => {
     const memberSummaries = [];
     for (const m of members) {
       const holdings = (await db.execute({
-        sql: 'SELECT COALESCE(SUM(invested), 0) as totalInvested, COALESCE(SUM(current_value), 0) as totalCurrent, COALESCE(SUM(pnl), 0) as totalPnl, COUNT(*) as stockCount FROM share_holdings WHERE family_member_id = ? AND year = ? AND month = ?',
+        sql: 'SELECT COALESCE(SUM(invested), 0) as totalInvested, COALESCE(SUM(current_value), 0) as totalCurrent, COUNT(*) as stockCount FROM share_holdings WHERE family_member_id = ? AND year = ? AND month = ?',
         args: [m.id, latestYear, latestMon]
       })).rows[0];
 
@@ -481,26 +481,31 @@ router.get('/summary', async (req, res) => {
       const totalDividends = (await db.execute(divSql)).rows[0].total;
 
       if (holdings.stockCount > 0 || totalDividends > 0) {
+        const pnl = holdings.totalCurrent - holdings.totalInvested;
         memberSummaries.push({
           member: m,
           invested: holdings.totalInvested,
           currentValue: holdings.totalCurrent,
-          pnl: holdings.totalPnl,
-          pnlPercent: holdings.totalInvested > 0 ? parseFloat(((holdings.totalPnl / holdings.totalInvested) * 100).toFixed(2)) : 0,
+          pnl,
+          pnlPercent: holdings.totalInvested > 0 ? parseFloat(((pnl / holdings.totalInvested) * 100).toFixed(2)) : 0,
           stockCount: holdings.stockCount,
           totalDividends
         });
       }
     }
 
-    // Monthly trend
+    // Monthly trend - compute P&L from current_value - invested (stored pnl may be stale)
     const trend = (await db.execute(
-      'SELECT year, month, SUM(invested) as invested, SUM(current_value) as current_value, SUM(pnl) as pnl FROM share_holdings GROUP BY year, month ORDER BY year ASC, month ASC'
-    )).rows.map(r => ({
-      ...r,
-      label: `${getMonthName(r.month)} ${r.year}`,
-      pnlPercent: r.invested > 0 ? parseFloat(((r.pnl / r.invested) * 100).toFixed(2)) : 0
-    }));
+      'SELECT year, month, SUM(invested) as invested, SUM(current_value) as current_value FROM share_holdings GROUP BY year, month ORDER BY year ASC, month ASC'
+    )).rows.map(r => {
+      const pnl = r.current_value - r.invested;
+      return {
+        ...r,
+        pnl,
+        label: `${getMonthName(r.month)} ${r.year}`,
+        pnlPercent: r.invested > 0 ? parseFloat(((pnl / r.invested) * 100).toFixed(2)) : 0
+      };
+    });
 
     // Dividend by month (filtered by year if set)
     const dividendTrend = (await db.execute(
