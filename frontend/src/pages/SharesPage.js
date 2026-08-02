@@ -36,6 +36,11 @@ function SharesPage() {
   // Dividend year filter (for dividends tab and reports tab)
   const [divReportYear, setDivReportYear] = useState('all');
 
+  // Stock name autocomplete
+  const [stockNames, setStockNames] = useState([]);
+  const [stockSuggestions, setStockSuggestions] = useState([]);
+  const [showStockSuggestions, setShowStockSuggestions] = useState(false);
+
   // Sorting state for holdings table
   const [sortField, setSortField] = useState('current_value');
   const [sortDir, setSortDir] = useState('desc');
@@ -86,7 +91,11 @@ function SharesPage() {
     } catch (err) { console.error(err); }
   }, [divReportYear]);
 
-  useEffect(() => { fetchMembers(); fetchAvailableMonths(); }, [fetchMembers, fetchAvailableMonths]);
+  const fetchStockNames = useCallback(async () => {
+    try { const res = await api.get('/shares/stock-names'); setStockNames(res.data); } catch (e) {}
+  }, []);
+
+  useEffect(() => { fetchMembers(); fetchAvailableMonths(); fetchStockNames(); }, [fetchMembers, fetchAvailableMonths, fetchStockNames]);
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
   useEffect(() => { if (activeTab === 'holdings') fetchHoldings(); }, [activeTab, fetchHoldings]);
   useEffect(() => { if (activeTab === 'dividends') fetchDividends(); }, [activeTab, fetchDividends]);
@@ -136,7 +145,7 @@ function SharesPage() {
       }
       setShowDividendForm(false); setEditingDividend(null);
       setDividendForm({ family_member_id: '', date: '', stock_name: '', amount: '', notes: '' });
-      fetchDividends(); fetchSummary();
+      fetchDividends(); fetchSummary(); fetchStockNames();
     } catch (err) { showMsg('Error: ' + (err.response?.data?.error || err.message)); }
   };
 
@@ -501,9 +510,50 @@ function SharesPage() {
                     </div>
                   </div>
                   <div className="form-row">
-                    <div className="form-group">
+                    <div className="form-group" style={{ position: 'relative' }}>
                       <label className="form-label">Stock</label>
-                      <input value={dividendForm.stock_name} onChange={e => setDividendForm({ ...dividendForm, stock_name: e.target.value })} className="form-control" required placeholder="e.g. COALINDIA" />
+                      <input
+                        value={dividendForm.stock_name}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setDividendForm({ ...dividendForm, stock_name: val });
+                          if (val.length > 0) {
+                            const filtered = stockNames.filter(s => s.toLowerCase().includes(val.toLowerCase()));
+                            setStockSuggestions(filtered);
+                            setShowStockSuggestions(filtered.length > 0);
+                          } else {
+                            setShowStockSuggestions(false);
+                          }
+                        }}
+                        onFocus={() => {
+                          if (dividendForm.stock_name.length === 0 && stockNames.length > 0) {
+                            setStockSuggestions(stockNames);
+                            setShowStockSuggestions(true);
+                          }
+                        }}
+                        onBlur={() => setTimeout(() => setShowStockSuggestions(false), 200)}
+                        className="form-control" required placeholder="e.g. COALINDIA"
+                        autoComplete="off"
+                      />
+                      {showStockSuggestions && stockSuggestions.length > 0 && (
+                        <div style={{
+                          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+                          background: 'white', border: '1px solid var(--gray-200)', borderRadius: '8px',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxHeight: '200px', overflowY: 'auto'
+                        }}>
+                          {stockSuggestions.map((s, i) => (
+                            <div key={i}
+                              style={{ padding: '0.5rem 0.75rem', cursor: 'pointer', fontSize: '0.9rem', borderBottom: '1px solid var(--gray-50)' }}
+                              onMouseDown={() => {
+                                setDividendForm({ ...dividendForm, stock_name: s });
+                                setShowStockSuggestions(false);
+                              }}
+                              onMouseEnter={e => e.target.style.background = 'var(--gray-50)'}
+                              onMouseLeave={e => e.target.style.background = 'white'}
+                            >{s}</div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div className="form-group">
                       <label className="form-label">Amount (₹)</label>

@@ -603,4 +603,15 @@ router.get('/summary', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /shares/stock-names - distinct stock names for autocomplete
+router.get('/stock-names', async (req, res) => {
+  try {
+    const db = getDb();
+    const fromHoldings = (await db.execute('SELECT DISTINCT instrument as name FROM share_holdings')).rows.map(r => r.name);
+    const fromDividends = (await db.execute('SELECT DISTINCT stock_name as name FROM dividends')).rows.map(r => r.name);
+    const all = [...new Set([...fromHoldings, ...fromDividends])].filter(Boolean).sort();
+    res.json(all);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;
