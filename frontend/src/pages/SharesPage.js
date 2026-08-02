@@ -47,6 +47,7 @@ function SharesPage() {
   const [holdingInstruments, setHoldingInstruments] = useState([]);
   const [renameMap, setRenameMap] = useState({});
 
+
   // Sorting state for holdings table
   const [sortField, setSortField] = useState('current_value');
   const [sortDir, setSortDir] = useState('desc');
@@ -129,6 +130,7 @@ function SharesPage() {
     showMsg(`Renamed ${entries.length} stock(s)`);
     fetchMismatches(); fetchDividends(); fetchSummary(); fetchStockNames();
   };
+
 
   useEffect(() => { fetchMembers(); fetchAvailableMonths(); fetchStockNames(); }, [fetchMembers, fetchAvailableMonths, fetchStockNames]);
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
@@ -513,7 +515,7 @@ function SharesPage() {
               <div className="card-header"><h3>Rename Dividend Stock Names</h3></div>
               <div className="card-body">
                 <p style={{ fontSize: '0.85rem', color: 'var(--gray-500)', marginBottom: '1rem' }}>
-                  These dividend stock names don't match any holdings instrument. Map them to the correct name to keep data consistent.
+                  Dividend stock names that don't exactly match a holdings instrument (including case differences like Indiamart vs INDIAMART).
                 </p>
                 {mismatches.length === 0 ? (
                   <p style={{ color: 'var(--success)', fontWeight: 500 }}>All dividend stock names match holdings instruments.</p>

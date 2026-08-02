@@ -625,14 +625,14 @@ router.get('/stock-names', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /shares/stock-mismatches - dividend names not matching any holdings instrument
+// GET /shares/stock-mismatches - dividend names not matching any holdings instrument (exact match)
 router.get('/stock-mismatches', async (req, res) => {
   try {
     const db = getDb();
-    const holdingNames = (await db.execute('SELECT DISTINCT UPPER(TRIM(instrument)) as name FROM share_holdings')).rows.map(r => r.name);
+    const holdingNames = (await db.execute('SELECT DISTINCT TRIM(instrument) as name FROM share_holdings')).rows.map(r => r.name);
     const divNames = (await db.execute('SELECT DISTINCT stock_name as name, COUNT(*) as count FROM dividends GROUP BY stock_name ORDER BY stock_name')).rows;
-    const mismatches = divNames.filter(d => !holdingNames.includes(d.name.toUpperCase().trim()));
-    res.json({ mismatches, holdingNames: [...new Set((await db.execute('SELECT DISTINCT instrument as name FROM share_holdings ORDER BY instrument')).rows.map(r => r.name))] });
+    const mismatches = divNames.filter(d => !holdingNames.includes(d.name.trim()));
+    res.json({ mismatches, holdingNames });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
