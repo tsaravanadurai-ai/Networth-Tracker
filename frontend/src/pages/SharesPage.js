@@ -26,7 +26,7 @@ function SharesPage() {
 
   const [showDividendForm, setShowDividendForm] = useState(false);
   const [editingDividend, setEditingDividend] = useState(null);
-  const [dividendForm, setDividendForm] = useState({ family_member_id: '', date: '', stock_name: '', amount: '', notes: '' });
+  const [dividendForm, setDividendForm] = useState({ family_member_id: '', div_month: new Date().getMonth() + 1, div_year: new Date().getFullYear(), stock_name: '', amount: '', notes: '' });
 
   // Import states
   const [showImportHoldings, setShowImportHoldings] = useState(false);
@@ -40,6 +40,12 @@ function SharesPage() {
   const [stockNames, setStockNames] = useState([]);
   const [stockSuggestions, setStockSuggestions] = useState([]);
   const [showStockSuggestions, setShowStockSuggestions] = useState(false);
+
+  // Stock rename
+  const [showRenamePanel, setShowRenamePanel] = useState(false);
+  const [mismatches, setMismatches] = useState([]);
+  const [holdingInstruments, setHoldingInstruments] = useState([]);
+  const [renameMap, setRenameMap] = useState({});
 
   // Sorting state for holdings table
   const [sortField, setSortField] = useState('current_value');
@@ -95,6 +101,35 @@ function SharesPage() {
     try { const res = await api.get('/shares/stock-names'); setStockNames(res.data); } catch (e) {}
   }, []);
 
+  const fetchMismatches = async () => {
+    try {
+      const res = await api.get('/shares/stock-mismatches');
+      setMismatches(res.data.mismatches);
+      setHoldingInstruments(res.data.holdingNames);
+      setRenameMap({});
+    } catch (e) {}
+  };
+
+  const handleRename = async (oldName) => {
+    const newName = renameMap[oldName];
+    if (!newName) return;
+    try {
+      const res = await api.put('/shares/dividends/rename-stock', { oldName, newName });
+      showMsg(res.data.message);
+      fetchMismatches(); fetchDividends(); fetchSummary(); fetchStockNames();
+    } catch (err) { showMsg('Error renaming', true); }
+  };
+
+  const handleRenameAll = async () => {
+    const entries = Object.entries(renameMap).filter(([, v]) => v);
+    if (entries.length === 0) return;
+    for (const [oldName, newName] of entries) {
+      await api.put('/shares/dividends/rename-stock', { oldName, newName });
+    }
+    showMsg(`Renamed ${entries.length} stock(s)`);
+    fetchMismatches(); fetchDividends(); fetchSummary(); fetchStockNames();
+  };
+
   useEffect(() => { fetchMembers(); fetchAvailableMonths(); fetchStockNames(); }, [fetchMembers, fetchAvailableMonths, fetchStockNames]);
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
   useEffect(() => { if (activeTab === 'holdings') fetchHoldings(); }, [activeTab, fetchHoldings]);
@@ -133,23 +168,26 @@ function SharesPage() {
   };
 
   // Dividend CRUD
+  const emptyDivForm = () => ({ family_member_id: '', div_month: new Date().getMonth() + 1, div_year: new Date().getFullYear(), stock_name: '', amount: '', notes: '' });
+
   const handleDividendSubmit = async (e, addAndNew = false) => {
     e.preventDefault();
     try {
+      // Build date as YYYY-MM-01 from month/year
+      const submitData = { ...dividendForm, date: `${dividendForm.div_year}-${String(dividendForm.div_month).padStart(2, '0')}-01` };
       if (editingDividend) {
-        await api.put(`/shares/dividends/${editingDividend.id}`, dividendForm);
+        await api.put(`/shares/dividends/${editingDividend.id}`, submitData);
         showMsg('Dividend updated');
         setShowDividendForm(false); setEditingDividend(null);
-        setDividendForm({ family_member_id: '', date: '', stock_name: '', amount: '', notes: '' });
+        setDividendForm(emptyDivForm());
       } else {
-        await api.post('/shares/dividends', dividendForm);
+        await api.post('/shares/dividends', submitData);
         showMsg('Dividend added');
         if (addAndNew) {
-          // Keep member & date, reset stock/amount/notes
           setDividendForm(prev => ({ ...prev, stock_name: '', amount: '', notes: '' }));
         } else {
           setShowDividendForm(false); setEditingDividend(null);
-          setDividendForm({ family_member_id: '', date: '', stock_name: '', amount: '', notes: '' });
+          setDividendForm(emptyDivForm());
         }
       }
       fetchDividends(); fetchSummary(); fetchStockNames();
@@ -158,7 +196,9 @@ function SharesPage() {
 
   const editDividend = (d) => {
     setEditingDividend(d);
-    setDividendForm({ family_member_id: d.family_member_id, date: d.date, stock_name: d.stock_name, amount: d.amount, notes: d.notes || '' });
+    const dMonth = d.date ? parseInt(d.date.substring(5, 7)) : new Date().getMonth() + 1;
+    const dYear = d.date ? parseInt(d.date.substring(0, 4)) : new Date().getFullYear();
+    setDividendForm({ family_member_id: d.family_member_id, div_month: dMonth, div_year: dYear, stock_name: d.stock_name, amount: d.amount, notes: d.notes || '' });
     setShowDividendForm(true);
   };
 
@@ -460,11 +500,69 @@ function SharesPage() {
               {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
-              <button className="btn btn-primary" onClick={() => { setEditingDividend(null); setDividendForm({ family_member_id: members[0]?.id || '', date: '', stock_name: '', amount: '', notes: '' }); setShowDividendForm(true); }}>+ Add</button>
+              <button className="btn btn-primary" onClick={() => { setEditingDividend(null); setDividendForm({ family_member_id: members[0]?.id || '', div_month: new Date().getMonth() + 1, div_year: new Date().getFullYear(), stock_name: '', amount: '', notes: '' }); setShowDividendForm(true); }}>+ Add</button>
               <button className="btn btn-secondary" onClick={() => setShowImportDividends(true)}>Import Excel</button>
               <button className="btn btn-secondary" onClick={handleExport}>Export</button>
+              <button className="btn btn-secondary" onClick={() => { setShowRenamePanel(!showRenamePanel); if (!showRenamePanel) fetchMismatches(); }}>Rename Stocks</button>
             </div>
           </div>
+
+          {/* Rename Stocks Panel */}
+          {showRenamePanel && (
+            <div className="card" style={{ marginBottom: '1.5rem' }}>
+              <div className="card-header"><h3>Rename Dividend Stock Names</h3></div>
+              <div className="card-body">
+                <p style={{ fontSize: '0.85rem', color: 'var(--gray-500)', marginBottom: '1rem' }}>
+                  These dividend stock names don't match any holdings instrument. Map them to the correct name to keep data consistent.
+                </p>
+                {mismatches.length === 0 ? (
+                  <p style={{ color: 'var(--success)', fontWeight: 500 }}>All dividend stock names match holdings instruments.</p>
+                ) : (
+                  <>
+                    <div className="table-container">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Dividend Name</th>
+                            <th>Entries</th>
+                            <th>Rename To</th>
+                            <th>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {mismatches.map(m => (
+                            <tr key={m.name}>
+                              <td style={{ fontWeight: 500 }}>{m.name}</td>
+                              <td>{m.count}</td>
+                              <td>
+                                <select
+                                  className="form-control"
+                                  style={{ padding: '0.3rem 0.5rem', fontSize: '0.85rem' }}
+                                  value={renameMap[m.name] || ''}
+                                  onChange={e => setRenameMap(prev => ({ ...prev, [m.name]: e.target.value }))}
+                                >
+                                  <option value="">-- Select --</option>
+                                  {holdingInstruments.map(h => <option key={h} value={h}>{h}</option>)}
+                                </select>
+                              </td>
+                              <td>
+                                <button className="btn btn-primary btn-sm" disabled={!renameMap[m.name]} onClick={() => handleRename(m.name)}>Rename</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {mismatches.length > 1 && (
+                      <button className="btn btn-primary" style={{ marginTop: '0.75rem' }} onClick={handleRenameAll} disabled={Object.values(renameMap).filter(Boolean).length === 0}>
+                        Rename All Mapped ({Object.values(renameMap).filter(Boolean).length})
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Total dividends */}
           {dividends.length > 0 && (
@@ -512,8 +610,13 @@ function SharesPage() {
                       </select>
                     </div>
                     <div className="form-group">
-                      <label className="form-label">Date</label>
-                      <input type="date" value={dividendForm.date} onChange={e => setDividendForm({ ...dividendForm, date: e.target.value })} className="form-control" required />
+                      <label className="form-label">Month</label>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <select value={dividendForm.div_month} onChange={e => setDividendForm({ ...dividendForm, div_month: Number(e.target.value) })} className="form-control">
+                          {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+                        </select>
+                        <input type="number" value={dividendForm.div_year} onChange={e => setDividendForm({ ...dividendForm, div_year: Number(e.target.value) })} className="form-control" min="2020" max="2050" style={{ width: '100px' }} />
+                      </div>
                     </div>
                   </div>
                   <div className="form-row">
@@ -595,12 +698,12 @@ function SharesPage() {
                 <div className="table-container">
                   <table className="data-table">
                     <thead>
-                      <tr><th>Date</th><th>Stock</th><th>Account</th><th style={{ textAlign: 'right' }}>Amount</th><th>Notes</th><th>Actions</th></tr>
+                      <tr><th>Month</th><th>Stock</th><th>Account</th><th style={{ textAlign: 'right' }}>Amount</th><th>Notes</th><th>Actions</th></tr>
                     </thead>
                     <tbody>
                       {dividends.map(d => (
                         <tr key={d.id}>
-                          <td>{d.date}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>{d.date ? `${MONTHS[parseInt(d.date.substring(5, 7)) - 1]} ${d.date.substring(0, 4)}` : d.date}</td>
                           <td style={{ fontWeight: 500 }}>{d.stock_name}</td>
                           <td><span className="member-dot" style={{ backgroundColor: d.member_color }}></span>{d.member_name}</td>
                           <td style={{ textAlign: 'right', color: 'var(--success)' }}>{formatCurrency(d.amount)}</td>

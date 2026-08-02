@@ -614,4 +614,26 @@ router.get('/stock-names', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /shares/stock-mismatches - dividend names not matching any holdings instrument
+router.get('/stock-mismatches', async (req, res) => {
+  try {
+    const db = getDb();
+    const holdingNames = (await db.execute('SELECT DISTINCT UPPER(TRIM(instrument)) as name FROM share_holdings')).rows.map(r => r.name);
+    const divNames = (await db.execute('SELECT DISTINCT stock_name as name, COUNT(*) as count FROM dividends GROUP BY stock_name ORDER BY stock_name')).rows;
+    const mismatches = divNames.filter(d => !holdingNames.includes(d.name.toUpperCase().trim()));
+    res.json({ mismatches, holdingNames: [...new Set((await db.execute('SELECT DISTINCT instrument as name FROM share_holdings ORDER BY instrument')).rows.map(r => r.name))] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /shares/dividends/rename-stock - rename stock across all dividends
+router.put('/dividends/rename-stock', async (req, res) => {
+  try {
+    const db = getDb();
+    const { oldName, newName } = req.body;
+    if (!oldName || !newName) return res.status(400).json({ error: 'Both oldName and newName required' });
+    const result = await db.execute({ sql: 'UPDATE dividends SET stock_name = ? WHERE stock_name = ?', args: [newName.trim(), oldName.trim()] });
+    res.json({ message: `Renamed "${oldName}" → "${newName}" (${result.rowsAffected} entries updated)` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;
