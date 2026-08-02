@@ -133,18 +133,25 @@ function SharesPage() {
   };
 
   // Dividend CRUD
-  const handleDividendSubmit = async (e) => {
+  const handleDividendSubmit = async (e, addAndNew = false) => {
     e.preventDefault();
     try {
       if (editingDividend) {
         await api.put(`/shares/dividends/${editingDividend.id}`, dividendForm);
         showMsg('Dividend updated');
+        setShowDividendForm(false); setEditingDividend(null);
+        setDividendForm({ family_member_id: '', date: '', stock_name: '', amount: '', notes: '' });
       } else {
         await api.post('/shares/dividends', dividendForm);
         showMsg('Dividend added');
+        if (addAndNew) {
+          // Keep member & date, reset stock/amount/notes
+          setDividendForm(prev => ({ ...prev, stock_name: '', amount: '', notes: '' }));
+        } else {
+          setShowDividendForm(false); setEditingDividend(null);
+          setDividendForm({ family_member_id: '', date: '', stock_name: '', amount: '', notes: '' });
+        }
       }
-      setShowDividendForm(false); setEditingDividend(null);
-      setDividendForm({ family_member_id: '', date: '', stock_name: '', amount: '', notes: '' });
       fetchDividends(); fetchSummary(); fetchStockNames();
     } catch (err) { showMsg('Error: ' + (err.response?.data?.error || err.message)); }
   };
@@ -566,6 +573,12 @@ function SharesPage() {
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button type="submit" className="btn btn-primary">{editingDividend ? 'Update' : 'Add'}</button>
+                    {!editingDividend && (
+                      <button type="button" className="btn btn-primary" style={{ background: 'var(--success)' }} onClick={(e) => {
+                        const form = e.target.closest('form');
+                        if (form.reportValidity()) handleDividendSubmit(e, true);
+                      }}>Add & New</button>
+                    )}
                     <button type="button" className="btn btn-secondary" onClick={() => { setShowDividendForm(false); setEditingDividend(null); }}>Cancel</button>
                   </div>
                 </form>
