@@ -140,6 +140,18 @@ router.post('/bulk', async (req, res) => {
   }
 });
 
+// Helper: get previous N months as [{month, year}, ...]
+function getPrevMonths(month, year, count) {
+  const result = [];
+  let m = month, y = year;
+  for (let i = 0; i < count; i++) {
+    m--;
+    if (m < 1) { m = 12; y--; }
+    result.push({ month: m, year: y });
+  }
+  return result;
+}
+
 router.post('/copy-month', async (req, res) => {
   try {
     const { fromMonth, fromYear, toMonth, toYear } = req.body;
@@ -161,12 +173,59 @@ router.post('/copy-month', async (req, res) => {
       return res.status(404).json({ error: 'No entries found for the source month' });
     }
 
-    const stmts = source.rows.map(e => ({
-      sql: 'INSERT INTO monthly_entries (family_member_id, month, year, category, description, invested_amount, current_value) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      args: [e.family_member_id, toMonth, toYear, e.category, e.description, e.invested_amount, e.current_value]
-    }));
+    // Smart projection: look back 3 months to detect arithmetic progression
+    // Get entries for the 3 months before the destination month (including source)
+    const prev3 = getPrevMonths(parseInt(toMonth), parseInt(toYear), 3);
+    const historyEntries = {};
+    for (const pm of prev3) {
+      const rows = (await db.execute({
+        sql: 'SELECT family_member_id, category, description, invested_amount, current_value FROM monthly_entries WHERE month = ? AND year = ?',
+        args: [pm.month, pm.year]
+      })).rows;
+      rows.forEach(r => {
+        const key = `${r.family_member_id}|${r.category}|${r.description}`;
+        if (!historyEntries[key]) historyEntries[key] = [];
+        historyEntries[key].push({ month: pm.month, year: pm.year, invested: r.invested_amount, current: r.current_value });
+      });
+    }
+
+    // For each entry, sort history chronologically and detect constant increment
+    let projected = 0;
+    const stmts = source.rows.map(e => {
+      const key = `${e.family_member_id}|${e.category}|${e.description}`;
+      const history = (historyEntries[key] || []).sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month);
+
+      let newInvested = e.invested_amount;
+      let newCurrent = e.current_value;
+
+      if (history.length >= 3) {
+        // Check invested_amount for arithmetic progression
+        const invVals = history.map(h => h.invested);
+        const invDiff1 = invVals[1] - invVals[0];
+        const invDiff2 = invVals[2] - invVals[1];
+        // Allow small floating point tolerance
+        if (Math.abs(invDiff1 - invDiff2) < 0.01 && invDiff1 !== 0) {
+          newInvested = invVals[2] + invDiff1;
+          projected++;
+        }
+
+        // Check current_value for arithmetic progression
+        const curVals = history.map(h => h.current);
+        const curDiff1 = curVals[1] - curVals[0];
+        const curDiff2 = curVals[2] - curVals[1];
+        if (Math.abs(curDiff1 - curDiff2) < 0.01 && curDiff1 !== 0) {
+          newCurrent = curVals[2] + curDiff1;
+        }
+      }
+
+      return {
+        sql: 'INSERT INTO monthly_entries (family_member_id, month, year, category, description, invested_amount, current_value) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        args: [e.family_member_id, toMonth, toYear, e.category, e.description, parseFloat(newInvested.toFixed(2)), parseFloat(newCurrent.toFixed(2))]
+      };
+    });
     await db.batch(stmts);
-    res.json({ message: `${source.rows.length} entries copied successfully` });
+    const projMsg = projected > 0 ? ` (${projected} entries auto-incremented based on pattern)` : '';
+    res.json({ message: `${source.rows.length} entries copied successfully${projMsg}` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -118,7 +118,7 @@ router.get('/summary/:year/:month', async (req, res) => {
     consolidated.sharesCurrent = shareHoldings.rows[0].totalSharesCurrent || 0;
     consolidated.sharesPnl = consolidated.sharesCurrent - consolidated.sharesInvested;
 
-    consolidated.totalNetWorth = consolidated.netWorth + bankReserves.rows[0].total + debtGiven.rows[0].total + goldCurrentValue + consolidated.sharesCurrent;
+    consolidated.totalNetWorth = consolidated.netWorth + bankReserves.rows[0].total + debtGiven.rows[0].total + goldCurrentValue;
 
     res.json({ summary, consolidated, month: parseInt(month), year: parseInt(year) });
   } catch (err) {
@@ -266,64 +266,8 @@ router.get('/trend-all', async (req, res) => {
       });
     }
 
-    // Add share holdings to each month in consolidated trend
-    const shareHoldingsAll = (await db.execute('SELECT family_member_id, year, month, SUM(invested) as invested, SUM(current_value) as current_value FROM share_holdings GROUP BY family_member_id, year, month')).rows;
-
-    const sharesByMonth = {};
-    shareHoldingsAll.forEach(s => {
-      const key = `${s.year}-${s.month}`;
-      if (!sharesByMonth[key]) sharesByMonth[key] = { invested: 0, currentValue: 0 };
-      sharesByMonth[key].invested += s.invested;
-      sharesByMonth[key].currentValue += s.current_value;
-    });
-
-    consolidated.forEach(row => {
-      const key = `${row.year}-${row.month}`;
-      const shares = sharesByMonth[key];
-      if (shares) {
-        row.invested += shares.invested;
-        row.currentValue += shares.currentValue;
-        row.interest = row.currentValue - row.invested;
-        row.netWorth = row.currentValue - row.debt;
-      }
-    });
-
-    // Also add shares that exist in months not yet in consolidated
-    Object.entries(sharesByMonth).forEach(([key, shares]) => {
-      if (!consolidated.find(c => `${c.year}-${c.month}` === key)) {
-        const [y, m] = key.split('-').map(Number);
-        consolidated.push({
-          year: y, month: m, label: `${getMonthName(m)} ${y}`,
-          invested: shares.invested, currentValue: shares.currentValue,
-          interest: shares.currentValue - shares.invested, debt: 0,
-          netWorth: shares.currentValue
-        });
-      }
-    });
-    consolidated.sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month);
-
-    // Add shares to per-member trends
-    for (const member of members) {
-      const memberShares = shareHoldingsAll.filter(s => s.family_member_id === member.id);
-      if (memberShares.length === 0) continue;
-      const memberTrend = allTrends[member.id] || [];
-      memberShares.forEach(s => {
-        const existing = memberTrend.find(r => r.year === s.year && r.month === s.month);
-        if (existing) {
-          existing.invested += s.invested;
-          existing.currentValue += s.current_value;
-          existing.interest = existing.currentValue - existing.invested;
-          existing.netWorth = existing.currentValue - existing.debt;
-        } else {
-          memberTrend.push({
-            year: s.year, month: s.month, label: `${getMonthName(s.month)} ${s.year}`,
-            invested: s.invested, currentValue: s.current_value,
-            interest: s.current_value - s.invested, debt: 0, netWorth: s.current_value
-          });
-        }
-      });
-      memberTrend.sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month);
-    }
+    // Share holdings data kept separate — not added to net worth trends
+    // Shares are tracked independently in the Shares page
 
     res.json({ members, trends: allTrends, consolidated });
   } catch (err) {

@@ -43,7 +43,7 @@ function Dashboard() {
   const doughnutData = {
     labels: membersWithData.map(s => s.member.name),
     datasets: [{
-      data: membersWithData.map(s => s.totalCurrentValue + getGoldValue(s) + getSharesCurrent(s)),
+      data: membersWithData.map(s => s.totalCurrentValue + getGoldValue(s)),
       backgroundColor: membersWithData.map(s => s.member.color),
       borderWidth: 2,
       borderColor: '#fff',
@@ -55,12 +55,12 @@ function Dashboard() {
     datasets: [
       {
         label: 'Invested',
-        data: membersWithData.map(s => s.totalInvested + getGoldPurchase(s) + getSharesInvested(s)),
+        data: membersWithData.map(s => s.totalInvested + getGoldPurchase(s)),
         backgroundColor: 'rgba(79, 70, 229, 0.7)',
       },
       {
         label: 'Current Value',
-        data: membersWithData.map(s => s.totalCurrentValue + getGoldValue(s) + getSharesCurrent(s)),
+        data: membersWithData.map(s => s.totalCurrentValue + getGoldValue(s)),
         backgroundColor: 'rgba(16, 185, 129, 0.7)',
       }
     ]
@@ -160,7 +160,7 @@ function Dashboard() {
             {formatCurrency(consolidated.totalNetWorth || consolidated.netWorth)}
           </div>
           <div className="stat-change" style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>
-            Investments + Bank + Receivables + Gold + Shares - Debt
+            Investments + Bank + Receivables + Gold - Debt
           </div>
         </div>
       </div>
@@ -191,7 +191,6 @@ function Dashboard() {
         {summary.summary.map(({ member, totalInvested, totalCurrentValue, totalInterest, interestPercentage, entryCount, goldGrams, goldPurchaseValue, sharesInvested, sharesCurrent }) => {
           const goldValue = goldGrams > 0 && consolidated.goldPricePerGram ? goldGrams * consolidated.goldPricePerGram : 0;
           const sharesVal = sharesCurrent || 0;
-          const memberNetWorth = totalCurrentValue + goldValue + sharesVal;
           return (
           <Link to={`/member/${member.id}`} key={member.id} className="member-summary-card">
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.25rem' }}>
