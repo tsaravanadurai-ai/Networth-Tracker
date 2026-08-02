@@ -88,8 +88,10 @@ function ReportsPage() {
     return {
       label: row.label,
       netWorth: nw,
+      currentValue: row.currentValue,
       invested: row.invested,
       interest: row.interest,
+      debt: row.debt || 0,
       momGrowth: prevNw && prevNw > 0 ? ((nw - prevNw) / prevNw) * 100 : null,
       yoyGrowth: yoyNw && yoyNw > 0 ? ((nw - yoyNw) / yoyNw) * 100 : null,
     };
@@ -399,17 +401,27 @@ function ReportsPage() {
                       <thead>
                         <tr>
                           <th>Month</th>
-                          <th style={{ textAlign: 'right' }}>Net Worth</th>
-                          <th style={{ textAlign: 'right' }}>MoM Growth</th>
-                          <th style={{ textAlign: 'right' }}>YoY Growth</th>
                           <th style={{ textAlign: 'right' }}>Invested</th>
                           <th style={{ textAlign: 'right' }}>Interest</th>
+                          <th style={{ textAlign: 'right' }}>Current Value</th>
+                          {growthData.some(r => r.debt > 0) && <th style={{ textAlign: 'right' }}>Debt</th>}
+                          <th style={{ textAlign: 'right' }}>Net Worth</th>
+                          <th style={{ textAlign: 'right' }}>MoM</th>
+                          <th style={{ textAlign: 'right' }}>YoY</th>
                         </tr>
                       </thead>
                       <tbody>
                         {[...growthData].reverse().map((row, i) => (
                           <tr key={i}>
                             <td style={{ fontWeight: i === 0 ? '700' : '400' }}>{row.label}</td>
+                            <td style={{ textAlign: 'right' }} className="amount">{formatCurrency(row.invested)}</td>
+                            <td style={{ textAlign: 'right' }} className={`amount ${row.interest >= 0 ? 'positive' : 'negative'}`}>{formatCurrency(row.interest)}</td>
+                            <td style={{ textAlign: 'right' }} className="amount">{formatCurrency(row.currentValue)}</td>
+                            {growthData.some(r => r.debt > 0) && (
+                              <td style={{ textAlign: 'right', color: row.debt > 0 ? 'var(--danger)' : '' }}>
+                                {row.debt > 0 ? `-${formatCurrency(row.debt)}` : '-'}
+                              </td>
+                            )}
                             <td style={{ textAlign: 'right', fontWeight: '600' }}>{formatCurrency(row.netWorth)}</td>
                             <td style={{ textAlign: 'right' }} className={`amount ${row.momGrowth !== null ? (row.momGrowth >= 0 ? 'positive' : 'negative') : ''}`}>
                               {row.momGrowth !== null ? `${row.momGrowth >= 0 ? '+' : ''}${row.momGrowth.toFixed(2)}%` : '-'}
@@ -417,8 +429,6 @@ function ReportsPage() {
                             <td style={{ textAlign: 'right' }} className={`amount ${row.yoyGrowth !== null ? (row.yoyGrowth >= 0 ? 'positive' : 'negative') : ''}`}>
                               {row.yoyGrowth !== null ? `${row.yoyGrowth >= 0 ? '+' : ''}${row.yoyGrowth.toFixed(2)}%` : '-'}
                             </td>
-                            <td style={{ textAlign: 'right' }} className="amount">{formatCurrency(row.invested)}</td>
-                            <td style={{ textAlign: 'right' }} className={`amount ${row.interest >= 0 ? 'positive' : 'negative'}`}>{formatCurrency(row.interest)}</td>
                           </tr>
                         ))}
                       </tbody>

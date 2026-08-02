@@ -255,15 +255,15 @@ function ExtrasPage() {
                     <tbody>
                       {goldData.entries.filter(e => goldMemberFilter === 'all' || e.family_member_id === Number(goldMemberFilter)).map(e => (
                         <tr key={e.id}>
-                          <td><span className="member-dot" style={{ backgroundColor: e.member_color }}></span>{e.member_name}</td>
+                          <td><div className="member-cell"><span className="member-dot" style={{ backgroundColor: e.member_color }}></span>{e.member_name}</div></td>
                           <td>{e.description}</td>
                           <td style={{ textAlign: 'right', fontWeight: '600' }}>{e.grams}g</td>
-                          <td>{MONTHS[e.purchase_month - 1]} {e.purchase_year}</td>
-                          <td style={{ textAlign: 'right' }}>₹{e.purchase_price_per_gram.toLocaleString('en-IN')}/g</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>{MONTHS[e.purchase_month - 1]} {e.purchase_year}</td>
+                          <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>₹{e.purchase_price_per_gram.toLocaleString('en-IN')}/g</td>
                           <td style={{ textAlign: 'right' }} className="amount">{formatCurrency(e.purchase_amount)}</td>
                           <td style={{ textAlign: 'right' }} className="amount">{formatCurrency(e.current_value)}</td>
                           <td style={{ textAlign: 'right' }} className={`amount ${e.gain >= 0 ? 'positive' : 'negative'}`}>{formatCurrency(e.gain)}</td>
-                          <td>
+                          <td className="actions-cell">
                             <button className="btn btn-secondary btn-sm" onClick={() => openModal('gold', e)} style={{ marginRight: '0.5rem' }}>Edit</button>
                             <button className="btn btn-danger btn-sm" onClick={() => handleDelete('gold-savings', e.id)}>Delete</button>
                           </td>
@@ -313,12 +313,12 @@ function ExtrasPage() {
                     <tbody>
                       {bankData.entries.map(e => (
                         <tr key={e.id}>
-                          <td><span className="member-dot" style={{ backgroundColor: e.member_color }}></span>{e.member_name}</td>
+                          <td><div className="member-cell"><span className="member-dot" style={{ backgroundColor: e.member_color }}></span>{e.member_name}</div></td>
                           <td><strong>{e.bank_name}</strong></td>
                           <td>{e.account_type}</td>
                           <td style={{ textAlign: 'right', fontWeight: '600' }}>{formatCurrency(e.amount)}</td>
                           <td style={{ color: 'var(--gray-500)', fontSize: '0.85rem' }}>{e.notes}</td>
-                          <td>
+                          <td className="actions-cell">
                             <button className="btn btn-secondary btn-sm" onClick={() => openModal('bank', e)} style={{ marginRight: '0.5rem' }}>Edit</button>
                             <button className="btn btn-danger btn-sm" onClick={() => handleDelete('bank-reserves', e.id)}>Delete</button>
                           </td>
@@ -379,11 +379,11 @@ function ExtrasPage() {
                     <tbody>
                       {debtData.entries.map(e => (
                         <tr key={e.id} style={{ opacity: e.status === 'returned' ? 0.6 : 1 }}>
-                          <td><span className="member-dot" style={{ backgroundColor: e.member_color }}></span>{e.member_name}</td>
+                          <td><div className="member-cell"><span className="member-dot" style={{ backgroundColor: e.member_color }}></span>{e.member_name}</div></td>
                           <td><strong>{e.person_name}</strong></td>
                           <td style={{ textAlign: 'right', fontWeight: '600' }}>{formatCurrency(e.amount)}</td>
-                          <td>{e.given_date}</td>
-                          <td>{e.expected_return_date || '-'}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>{e.given_date}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>{e.expected_return_date || '-'}</td>
                           <td style={{ fontSize: '0.85rem' }}>{e.purpose || '-'}</td>
                           <td>
                             {e.status === 'pending' ? (
@@ -392,7 +392,7 @@ function ExtrasPage() {
                               <span className="badge badge-success" style={{ cursor: 'pointer' }} onClick={() => handleDebtStatus(e.id, 'pending')}>Returned</span>
                             )}
                           </td>
-                          <td>
+                          <td className="actions-cell">
                             <button className="btn btn-secondary btn-sm" onClick={() => openModal('debt', e)} style={{ marginRight: '0.5rem' }}>Edit</button>
                             <button className="btn btn-danger btn-sm" onClick={() => handleDelete('debt-given', e.id)}>Delete</button>
                           </td>
