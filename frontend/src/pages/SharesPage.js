@@ -160,6 +160,8 @@ function SharesPage() {
     const formData = new FormData();
     formData.append('file', fileInput.files[0]);
     if (importMemberId) formData.append('family_member_id', importMemberId);
+    formData.append('year', selectedYear);
+    formData.append('month', selectedMonth);
     try {
       const res = await api.post('/shares/import-holdings', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       showMsg(res.data.message);
@@ -309,9 +311,9 @@ function SharesPage() {
               <div className="card-header"><h3>Import Share Tracker</h3></div>
               <div className="card-body">
                 <p style={{ fontSize: '0.85rem', color: 'var(--gray-500)', marginBottom: '1rem' }}>
-                  Upload your Zerodha Kite export Excel. Each sheet tab should be named like "Jul 2026", "Mar 2025" etc.
-                  Columns: Instrument, Qty., Avg. cost, LTP, Invested, Cur. val, P&L, Overall %.
-                  If the sheet has a "Member" column, it will be auto-detected. Otherwise select a member below (optional — defaults to first member).
+                  Upload holdings from any broker — Zerodha, Upstox, Angel One, Groww, Paytm Money (CSV or Excel).
+                  Format is auto-detected from column headers. For multi-month trackers, name sheet tabs like "Jul 2026".
+                  Single-sheet files import into the currently selected month. Member column auto-detected if present.
                 </p>
                 <form onSubmit={handleImportHoldings}>
                   <div className="form-row" style={{ marginBottom: '1rem' }}>

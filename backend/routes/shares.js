@@ -120,75 +120,153 @@ router.delete('/holdings/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ============ IMPORT SHARE TRACKER (multi-sheet Excel) ============
+// ============ SMART COLUMN MAPPER FOR BROKER FORMATS ============
+// Auto-detects Zerodha, Upstox, Angel One, Groww, Paytm Money, and generic formats
+function detectColumns(headers) {
+  const h = headers.map(x => x.toString().trim().toLowerCase());
+  const find = (variations) => {
+    for (const v of variations) {
+      const idx = h.findIndex(col => col === v.toLowerCase() || col.includes(v.toLowerCase()));
+      if (idx >= 0) return headers[idx]; // return original case header
+    }
+    return null;
+  };
+
+  const instrument = find([
+    'instrument', 'stock', 'scrip', 'symbol', 'company', 'stock name', 'company name',
+    'scrip name', 'trading symbol', 'ticker', 'name', 'stock/etf'
+  ]);
+  const qty = find([
+    'qty.', 'qty', 'quantity', 'shares', 'units', 'no. of shares', 'total qty'
+  ]);
+  const avgCost = find([
+    'avg. cost', 'avg cost', 'average price', 'avg price', 'avg. price',
+    'avg buy price', 'avg. buy price', 'buy avg', 'buy average', 'purchase price',
+    'average cost', 'buy price'
+  ]);
+  const ltp = find([
+    'ltp', 'last price', 'current price', 'market price', 'cmp', 'close price',
+    'last traded price', 'present value'
+  ]);
+  const invested = find([
+    'invested', 'invested value', 'buy value', 'investment', 'total invested',
+    'invested amount', 'cost value', 'total cost', 'purchase value', 'invested val'
+  ]);
+  const curVal = find([
+    'cur. val', 'cur val', 'current value', 'market value', 'present value',
+    'current val', 'mkt value', 'mkt. value', 'portfolio value'
+  ]);
+  const pnl = find([
+    'p&l', 'pnl', 'profit/loss', 'unrealised p&l', 'unrealized p&l',
+    'returns', 'gain/loss', 'total p&l', 'profit & loss', 'profit'
+  ]);
+  const pnlPct = find([
+    'overall %', 'p&l %', 'pnl %', 'returns %', 'returns(%)', '% change',
+    'net chg.', 'change %', '% returns', 'overall gain %'
+  ]);
+  const member = find(['member', 'account', 'holder', 'owner']);
+
+  // Detect broker
+  let broker = 'Generic';
+  if (h.includes('instrument') && h.some(c => c.includes('avg. cost')) && h.some(c => c.includes('cur. val'))) {
+    broker = 'Zerodha';
+  } else if (h.some(c => c.includes('isin')) && h.some(c => c.includes('average price'))) {
+    broker = 'Upstox';
+  } else if (h.some(c => c.includes('scrip')) && h.some(c => c.includes('buy avg') || c.includes('avg price'))) {
+    broker = 'Angel One';
+  } else if (h.some(c => c.includes('stock name') || c.includes('company name')) && h.some(c => c.includes('avg. buy price') || c.includes('average price'))) {
+    broker = 'Groww';
+  } else if (h.some(c => c.includes('avg buy price')) && h.some(c => c.includes('invested'))) {
+    broker = 'Paytm Money';
+  }
+
+  return { instrument, qty, avgCost, ltp, invested, curVal, pnl, pnlPct, member, broker };
+}
+
+function getVal(row, key) {
+  if (!key) return 0;
+  const val = row[key];
+  if (val === undefined || val === null || val === '') return 0;
+  // Remove currency symbols, commas, spaces
+  const cleaned = val.toString().replace(/[₹,$,\s]/g, '').replace(/,/g, '');
+  return parseFloat(cleaned) || 0;
+}
+
+function getStr(row, key) {
+  if (!key) return '';
+  return (row[key] || '').toString().trim();
+}
+
+// ============ IMPORT SHARE TRACKER (multi-format, multi-broker) ============
 router.post('/import-holdings', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const { family_member_id } = req.body; // optional now
+    const { family_member_id, year, month } = req.body; // all optional
 
     const workbook = XLSX.readFile(req.file.path);
     const db = getDb();
     const memberMap = await getMemberMap(db);
-    // Get first member as fallback
     const firstMember = (await db.execute('SELECT id FROM family_members ORDER BY id LIMIT 1')).rows;
     const defaultMemberId = family_member_id ? parseInt(family_member_id) : (firstMember.length > 0 ? firstMember[0].id : 1);
 
+    // Determine target month/year: from form, or current month
+    const now = new Date();
+    const targetYear = year ? parseInt(year) : now.getFullYear();
+    const targetMonth = month ? parseInt(month) : (now.getMonth() + 1);
+
     let totalImported = 0;
     const skippedSheets = [];
+    let detectedBroker = 'Unknown';
 
     for (const sheetName of workbook.SheetNames) {
-      const parsed = parseSheetName(sheetName);
-      if (!parsed) { skippedSheets.push(sheetName); continue; }
-
       const sheet = workbook.Sheets[sheetName];
       const data = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      if (data.length === 0) { skippedSheets.push(sheetName); continue; }
 
-      // Check if sheet has a Member column
-      const hasMemberCol = data.length > 0 && (data[0].hasOwnProperty('Member') || data[0].hasOwnProperty('member') || data[0].hasOwnProperty('Account') || data[0].hasOwnProperty('account'));
+      // Try to parse sheet name as month (for multi-month tracker format)
+      const parsed = parseSheetName(sheetName);
+      const sheetYear = parsed ? parsed.year : targetYear;
+      const sheetMonth = parsed ? parsed.month : targetMonth;
 
+      // Auto-detect columns from headers
+      const headers = Object.keys(data[0]);
+      const cols = detectColumns(headers);
+      detectedBroker = cols.broker;
+
+      if (!cols.instrument) {
+        // Can't find instrument column — skip sheet
+        skippedSheets.push(sheetName);
+        continue;
+      }
+
+      const hasMemberCol = !!cols.member;
+
+      // Delete existing entries for this month before importing
       if (hasMemberCol) {
-        // Delete all entries for this month (all members) since sheet has member info
-        await db.execute({
-          sql: 'DELETE FROM share_holdings WHERE year = ? AND month = ?',
-          args: [parsed.year, parsed.month]
-        });
+        await db.execute({ sql: 'DELETE FROM share_holdings WHERE year = ? AND month = ?', args: [sheetYear, sheetMonth] });
       } else if (family_member_id) {
-        // Delete existing entries for the selected member/month
-        await db.execute({
-          sql: 'DELETE FROM share_holdings WHERE family_member_id = ? AND year = ? AND month = ?',
-          args: [defaultMemberId, parsed.year, parsed.month]
-        });
+        await db.execute({ sql: 'DELETE FROM share_holdings WHERE family_member_id = ? AND year = ? AND month = ?', args: [defaultMemberId, sheetYear, sheetMonth] });
       } else {
-        // No member col, no member selected — delete all for this month
-        await db.execute({
-          sql: 'DELETE FROM share_holdings WHERE year = ? AND month = ?',
-          args: [parsed.year, parsed.month]
-        });
+        await db.execute({ sql: 'DELETE FROM share_holdings WHERE year = ? AND month = ?', args: [sheetYear, sheetMonth] });
       }
 
       for (const row of data) {
-        const instrument = (row['Instrument'] || row['instrument'] || '').toString().trim();
-        if (!instrument || instrument === '') continue;
+        const instrument = getStr(row, cols.instrument);
+        if (!instrument) continue;
 
-        const qty = parseFloat(row['Qty.'] || row['Qty'] || row['quantity'] || 0) || 0;
-        const avgCost = parseFloat(row['Avg. cost'] || row['Avg cost'] || row['avg_cost'] || 0) || 0;
-        const ltp = parseFloat(row['LTP'] || row['ltp'] || 0) || 0;
-        const invested = parseFloat(row['Invested'] || row['invested'] || 0) || 0;
-        const curVal = parseFloat(row['Cur. val'] || row['Cur val'] || row['current_value'] || 0) || 0;
-        const pnl = parseFloat(row['P&L'] || row['pnl'] || 0) || 0;
-        let pnlPct = row['Overall %'] || row['overall_percent'] || 0;
-        pnlPct = parseFloat(pnlPct) || 0;
-        if (Math.abs(pnlPct) < 1 && pnlPct !== 0) pnlPct = pnlPct * 100;
+        const qty = getVal(row, cols.qty);
+        const avgCost = getVal(row, cols.avgCost);
+        const ltp = getVal(row, cols.ltp);
+        const invested = getVal(row, cols.invested);
+        const curVal = getVal(row, cols.curVal);
 
         if (qty === 0 && invested === 0) continue;
 
-        // Resolve member: from row column > from form > default
+        // Resolve member
         let rowMemberId = defaultMemberId;
         if (hasMemberCol) {
-          const memberName = (row['Member'] || row['member'] || row['Account'] || row['account'] || '').toString().trim().toLowerCase();
-          if (memberName && memberMap[memberName]) {
-            rowMemberId = memberMap[memberName];
-          }
+          const memberName = getStr(row, cols.member).toLowerCase();
+          if (memberName && memberMap[memberName]) rowMemberId = memberMap[memberName];
         }
 
         const finalInvested = invested > 0 ? invested : qty * avgCost;
@@ -198,7 +276,7 @@ router.post('/import-holdings', upload.single('file'), async (req, res) => {
 
         await db.execute({
           sql: 'INSERT INTO share_holdings (family_member_id, year, month, instrument, quantity, avg_cost, ltp, invested, current_value, pnl, pnl_percent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          args: [rowMemberId, parsed.year, parsed.month, instrument, qty, avgCost, ltp, finalInvested, finalCurVal, finalPnl, finalPnlPct]
+          args: [rowMemberId, sheetYear, sheetMonth, instrument, qty, avgCost, ltp, finalInvested, finalCurVal, finalPnl, finalPnlPct]
         });
         totalImported++;
       }
@@ -207,8 +285,10 @@ router.post('/import-holdings', upload.single('file'), async (req, res) => {
     // Clean up uploaded file
     try { require('fs').unlinkSync(req.file.path); } catch (e) {}
 
+    const sheetsProcessed = workbook.SheetNames.length - skippedSheets.length;
     res.json({
-      message: `Imported ${totalImported} holdings across ${workbook.SheetNames.length - skippedSheets.length} months`,
+      message: `Imported ${totalImported} holdings (${detectedBroker} format detected)${sheetsProcessed > 1 ? ` across ${sheetsProcessed} months` : ''}`,
+      broker: detectedBroker,
       skippedSheets: skippedSheets.length > 0 ? skippedSheets : undefined
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
