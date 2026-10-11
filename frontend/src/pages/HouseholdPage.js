@@ -43,6 +43,18 @@ const CATEGORIES = ['Groceries', 'Bills', 'Rent', 'Eating out', 'Travel', 'Fuel'
 // ---------- voice ----------
 const Recognition = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
 
+// Tell the page why voice didn't work, so the button never fails silently.
+const voiceMessage = text => window.dispatchEvent(new CustomEvent('hh-voice', { detail: text }));
+
+const VOICE_ERRORS = {
+  'not-allowed': 'Voice input is blocked. On iPhone open Settings → Safari → Microphone and choose Allow, and make sure Siri & Dictation is turned on (Settings → Siri). Then try again.',
+  'service-not-allowed': "This browser doesn't allow voice input. Open the site in Safari, or use the mic key on your keyboard.",
+  'language-not-supported': 'Tamil voice input isn\u2019t available here. Switch to English, or add the Tamil keyboard and use its mic key.',
+  'no-speech': "Didn't hear anything. Tap the mic and speak right away.",
+  'audio-capture': 'No microphone found. Check that no other app is using it.',
+  'network': 'Voice input needs an internet connection. Check your connection and try again.',
+};
+
 function MicButton({ lang, onText }) {
   const [listening, setListening] = useState(false);
   const recRef = useRef(null);
@@ -50,19 +62,39 @@ function MicButton({ lang, onText }) {
 
   const start = () => {
     if (listening) { recRef.current && recRef.current.stop(); return; }
-    const rec = new Recognition();
+    voiceMessage('');
+    let rec;
+    try { rec = new Recognition(); } catch (e) { voiceMessage(VOICE_ERRORS['service-not-allowed']); return; }
     rec.lang = lang;
-    rec.interimResults = false;
+    // iPhone Safari is more reliable with interim results on; we keep the latest text and use it when listening ends.
+    rec.interimResults = true;
+    rec.continuous = false;
     rec.maxAlternatives = 1;
-    rec.onresult = e => {
-      const text = Array.from(e.results).map(r => r[0].transcript).join(' ').trim();
+    let latest = '';
+    let delivered = false;
+    let failed = false;
+    const deliver = () => {
+      if (delivered) return;
+      delivered = true;
+      const text = latest.trim();
       if (text) onText(text);
+      else if (!failed) voiceMessage(VOICE_ERRORS['no-speech']);
     };
-    rec.onend = () => setListening(false);
-    rec.onerror = () => setListening(false);
+    rec.onresult = e => {
+      latest = Array.from(e.results).map(r => r[0].transcript).join(' ');
+      const last = e.results[e.results.length - 1];
+      if (last && last.isFinal) { deliver(); try { rec.stop(); } catch (err) { /* already stopped */ } }
+    };
+    rec.onerror = e => {
+      failed = true;
+      if (e.error !== 'aborted') voiceMessage(VOICE_ERRORS[e.error] || "Voice input stopped (" + e.error + "). Try again, or use the keyboard mic.");
+      setListening(false);
+    };
+    rec.onend = () => { setListening(false); deliver(); };
     recRef.current = rec;
     setListening(true);
-    try { rec.start(); } catch (err) { setListening(false); }
+    try { rec.start(); }
+    catch (err) { setListening(false); voiceMessage("Couldn't start voice input. Try again, or use the mic key on your keyboard."); }
   };
 
   return (
@@ -113,6 +145,13 @@ function HouseholdPage() {
   const [data, setData] = useState({ expenses: [], groceries: [], todos: [], notes: [] });
   const [people, setPeople] = useState({ me: '', people: [] });
   const [error, setError] = useState('');
+  const [voiceNote, setVoiceNote] = useState('');
+
+  useEffect(() => {
+    const onVoice = e => setVoiceNote(e.detail || '');
+    window.addEventListener('hh-voice', onVoice);
+    return () => window.removeEventListener('hh-voice', onVoice);
+  }, []);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => { try { localStorage.setItem('hh-lang', lang); } catch (e) { /* ignore */ } }, [lang]);
@@ -170,6 +209,12 @@ function HouseholdPage() {
       </div>
 
       {error && <p className="hh-error">{error}</p>}
+      {voiceNote && (
+        <p className="hh-error hh-voice-note" role="status">
+          {voiceNote}
+          <button type="button" className="hh-note-close" onClick={() => setVoiceNote('')} aria-label="Dismiss">×</button>
+        </p>
+      )}
       {!Recognition && <p className="hh-hint">This browser has no voice input. Use the mic on your phone's keyboard instead.</p>}
 
       {tab === 'money' && <Money rows={data.expenses} me={me} lang={lang} add={add} del={del} loaded={loaded} />}

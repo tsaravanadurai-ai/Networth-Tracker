@@ -100,3 +100,6 @@
   .hh-list li { padding: 0.7rem 0; }
   .form-control { font-size: 16px; } /* stops iPhone zooming into fields */
 }
+
+.hh-voice-note { position: relative; padding-right: 2.2rem; background: #FFFBEB; color: #92400E; }
+.hh-note-close { position: absolute; top: 0.35rem; right: 0.4rem; border: 0; background: none; font-size: 1.2rem; color: inherit; cursor: pointer; }
