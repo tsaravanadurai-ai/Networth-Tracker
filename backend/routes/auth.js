@@ -2,6 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const { getDb, hashPassword, verifyPassword } = require('../db');
 const { JWT_SECRET, authenticateAny } = require('../middleware/auth');
+const { effectivePerms } = require('../permissions');
 
 const router = express.Router();
 
@@ -45,7 +46,7 @@ router.post('/signup', async (req, res) => {
     const user = (await db.execute({ sql: 'SELECT * FROM users WHERE username = ?', args: [username.toLowerCase()] })).rows[0];
     const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
 
-    res.status(201).json({ token, username: user.username, role: user.role, status: user.status });
+    res.status(201).json({ token, username: user.username, role: user.role, status: user.status, perms: effectivePerms(user) });
   } catch (err) {
     console.error('Signup error:', err);
     res.status(500).json({ error: 'Server error' });
@@ -79,7 +80,7 @@ router.post('/login', async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    res.json({ token, username: user.username, role: user.role, status: user.status });
+    res.json({ token, username: user.username, role: user.role, status: user.status, perms: effectivePerms(user) });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Server error' });
@@ -114,7 +115,7 @@ router.post('/change-password', authenticateAny, async (req, res) => {
 });
 
 router.get('/verify', authenticateAny, (req, res) => {
-  res.json({ valid: true, username: req.user.username, role: req.user.role, status: req.user.status });
+  res.json({ valid: true, username: req.user.username, role: req.user.role, status: req.user.status, perms: req.user.perms });
 });
 
 module.exports = router;

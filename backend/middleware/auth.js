@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const { getDb } = require('../db');
 const { runScoped } = require('../memberScope');
+const { effectivePerms, checkApi } = require('../permissions');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'family-networth-secret-key-2024';
 
@@ -11,7 +12,7 @@ const CACHE_MS = 10000;
 async function loadUser(id) {
   const hit = cache.get(id);
   if (hit && Date.now() - hit.t < CACHE_MS) return hit.u;
-  const r = await getDb().execute({ sql: 'SELECT id, username, role, status, member_id, access FROM users WHERE id = ?', args: [id] });
+  const r = await getDb().execute({ sql: 'SELECT id, username, role, status, member_id, access, perms FROM users WHERE id = ?', args: [id] });
   const u = r.rows[0] || null;
   cache.set(id, { u, t: Date.now() });
   return u;
@@ -46,6 +47,12 @@ function makeAuth(requireApproved) {
       req.user = { id: Number(u.id), username: u.username, role: u.role, status: u.status, memberId: u.member_id == null ? null : Number(u.member_id) };
       if (requireApproved && u.status !== 'approved') {
         return res.status(403).json({ error: 'Waiting for the head of the family to approve your request.', pending: true });
+      }
+      // Which tabs this login may view or change.
+      req.user.perms = effectivePerms(u);
+      if (requireApproved) {
+        const denied = checkApi(req.user.perms, req.baseUrl, req.method);
+        if (denied) return res.status(denied.status).json(denied.body);
       }
       // The head sees everyone. Other logins with a chosen list only reach those members.
       const allowed = accessList(u);

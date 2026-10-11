@@ -88,8 +88,10 @@ function MembersSection({ onChanged }) {
   );
 }
 
-// One login: which family member it is, and whose net worth it can see.
-function LoginAccess({ login, profiles, onSave }) {
+const LEVEL_LABEL = { none: 'Hidden', view: 'View', edit: 'Edit' };
+
+// One login: which family member it is, whose net worth it can see, and what it can do on each tab.
+function LoginAccess({ login, profiles, tabs, onSave }) {
   const isHead = login.role === 'head';
   const limited = Array.isArray(login.access);
   const chosen = new Set(limited ? login.access : []);
@@ -111,7 +113,7 @@ function LoginAccess({ login, profiles, onSave }) {
         </select>
       </label>
       {isHead ? (
-        <p className="hh-s">Sees everyone's net worth.</p>
+        <p className="hh-s">Sees and edits everything.</p>
       ) : (
         <>
           <label className="fa-row" htmlFor={'fa-scope-' + login.id}>
@@ -132,6 +134,25 @@ function LoginAccess({ login, profiles, onSave }) {
               {!chosen.size && <p className="hh-s" style={{ width: '100%' }}>Sees no one's net worth yet. Tap names to allow them.</p>}
             </div>
           )}
+          <div className="fa-perms">
+            <span className="hh-s">Tabs</span>
+            <div className="fa-permgrid">
+              {Object.entries(tabs).map(([key, t]) => (
+                <div key={key} className="fa-permrow">
+                  <span>{t.label}</span>
+                  <div className="fa-seg" role="group" aria-label={t.label + ' access'}>
+                    {t.levels.map(level => (
+                      <button key={level} type="button" className={login.perms?.[key] === level ? 'on' : ''} aria-pressed={login.perms?.[key] === level}
+                        onClick={() => onSave({ perms: { ...login.perms, [key]: level } })}>
+                        {LEVEL_LABEL[level]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
         </>
       )}
     </div>
@@ -140,6 +161,7 @@ function LoginAccess({ login, profiles, onSave }) {
 
 function FamilyPage() {
   const [profiles, setProfiles] = useState([]);
+  const [tabs, setTabs] = useState({});
   const [code, setCode] = useState('');
   const [members, setMembers] = useState([]);
   const [error, setError] = useState('');
@@ -150,7 +172,7 @@ function FamilyPage() {
   const load = useCallback(async () => {
     try {
       const [r, p] = await Promise.all([api.get('/family'), api.get('/family/profiles')]);
-      setCode(r.data.code); setMembers(r.data.members); setProfiles(p.data); setError('');
+      setCode(r.data.code); setMembers(r.data.members); setProfiles(p.data); setTabs(r.data.tabs || {}); setError('');
     } catch (e) { setError(e.response?.data?.error || "Couldn't load your family. Try again."); }
   }, []);
 
@@ -231,7 +253,7 @@ function FamilyPage() {
                 {m.role !== 'head' && removeBtn(m, 'Remove')}
               </div>
               <span className="hh-s">{m.role === 'head' ? 'Head of the family' : 'Member'} · since {since(m.created_at)}</span>
-              <LoginAccess login={m} profiles={profiles} onSave={body => act(() => api.patch('/family/members/' + m.id, body))} />
+              <LoginAccess login={m} profiles={profiles} tabs={tabs} onSave={body => act(() => api.patch('/family/members/' + m.id, body))} />
             </div>
           </li>
         ))}

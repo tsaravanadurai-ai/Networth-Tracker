@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb, newFamilyCode } = require('../db');
 const { authenticateToken, requireHead, clearUserCache } = require('../middleware/auth');
+const { TABS, NEW_LOGIN_PERMS, effectivePerms, clean } = require('../permissions');
 
 const router = express.Router();
 
@@ -16,15 +17,16 @@ router.get('/', async (req, res) => {
     const db = getDb();
     const code = (await db.execute("SELECT value FROM settings WHERE key = 'family_code'")).rows[0]?.value || '';
     const members = (await db.execute(
-      "SELECT id, username, role, status, member_id, access, created_at FROM users ORDER BY (status = 'pending') DESC, (role = 'head') DESC, id ASC"
+      "SELECT id, username, role, status, member_id, access, perms, created_at FROM users ORDER BY (status = 'pending') DESC, (role = 'head') DESC, id ASC"
     )).rows.map(r => ({
       id: Number(r.id), username: r.username, role: r.role, status: r.status, created_at: r.created_at,
       memberId: r.member_id == null ? null : Number(r.member_id),
       // null = sees every member; [] or [ids] = only those
       access: r.role === 'head' || r.access == null ? null : safeList(r.access),
+      perms: effectivePerms(r),
       isMe: Number(r.id) === req.user.id,
     }));
-    res.json({ code, members });
+    res.json({ code, members, tabs: TABS });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -40,8 +42,8 @@ router.post('/members/:id/approve', async (req, res) => {
   try {
     // A newly approved login sees no one's net worth until you choose members for it.
     await getDb().execute({
-      sql: "UPDATE users SET status = 'approved', access = CASE WHEN status = 'pending' THEN '[]' ELSE access END WHERE id = ? AND role != 'head'",
-      args: [req.params.id],
+      sql: "UPDATE users SET status = 'approved', access = CASE WHEN status = 'pending' THEN '[]' ELSE access END, perms = CASE WHEN status = 'pending' THEN ? ELSE perms END WHERE id = ? AND role != 'head'",
+      args: [JSON.stringify(NEW_LOGIN_PERMS), req.params.id],
     });
     clearUserCache(req.params.id);
     res.json({ ok: true });
@@ -66,6 +68,10 @@ router.patch('/members/:id', async (req, res) => {
       if (a === null) { sets.push('access = NULL'); }
       else if (Array.isArray(a)) { sets.push('access = ?'); args.push(JSON.stringify([...new Set(a.map(Number))].filter(x => known.has(x)))); }
       else return res.status(400).json({ error: 'Choose who they can see.' });
+    }
+    if ('perms' in req.body && u.role !== 'head') {
+      if (req.body.perms === null) sets.push('perms = NULL');
+      else if (typeof req.body.perms === 'object') { sets.push('perms = ?'); args.push(JSON.stringify(clean(req.body.perms))); }
     }
     if (!sets.length) return res.status(400).json({ error: 'Nothing to change.' });
     await db.execute({ sql: `UPDATE users SET ${sets.join(', ')} WHERE id = ?`, args: [...args, req.params.id] });

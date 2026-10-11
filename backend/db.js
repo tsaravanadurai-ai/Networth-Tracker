@@ -185,6 +185,8 @@ async function initFamilyAccess(db) {
   // Which family member a login is, and which members' net worth it may see (NULL = everyone).
   if (!cols.includes('member_id')) await db.execute('ALTER TABLE users ADD COLUMN member_id INTEGER');
   if (!cols.includes('access')) await db.execute('ALTER TABLE users ADD COLUMN access TEXT');
+  // Per-tab view/edit permissions as JSON (NULL = can edit everything).
+  if (!cols.includes('perms')) await db.execute('ALTER TABLE users ADD COLUMN perms TEXT');
 
   const heads = await db.execute("SELECT COUNT(*) AS count FROM users WHERE role = 'head'");
   if (Number(heads.rows[0].count) === 0) {

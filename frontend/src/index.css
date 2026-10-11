@@ -690,3 +690,14 @@ select.form-control {
   color: var(--primary);
   border-bottom-color: var(--primary);
 }
+
+/* View-only pages: edit actions are hidden; the server refuses changes anyway */
+.view-only-note { background: var(--primary-light); color: var(--primary-dark); border-radius: 10px; padding: 0.6rem 0.9rem; font-size: 0.9rem; font-weight: 500; margin-bottom: 1rem; }
+.view-only .btn-primary,
+.view-only .btn-danger,
+.view-only .btn-secondary.btn-sm,
+.view-only .hh-form,
+.view-only .hh-del,
+.view-only .hh-form + .hh-hint,
+.view-only .hh-section > .btn-secondary { display: none !important; }
+.view-only .hh-check { pointer-events: none; opacity: 0.6; }

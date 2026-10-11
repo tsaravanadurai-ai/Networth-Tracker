@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, can } from '../context/AuthContext';
 import api from '../utils/api';
 
 function Navbar() {
@@ -34,12 +34,12 @@ function Navbar() {
           {version && <span style={{ fontSize: '0.6rem', color: 'var(--gray-400)', marginLeft: '0.5rem', fontWeight: '400' }}>v{version}</span>}
         </Link>
         <ul className="navbar-nav">
-          <li><Link to="/" className={isActive('/')}>Dashboard</Link></li>
-          <li><Link to="/home" className={isActive('/home')}>Home</Link></li>
-          <li><Link to="/entry" className={isActive('/entry')}>Monthly Entry</Link></li>
-          <li><Link to="/reports" className={isActive('/reports')}>Reports</Link></li>
-          <li><Link to="/shares" className={isActive('/shares')}>Shares</Link></li>
-          <li><Link to="/extras" className={isActive('/extras')}>Gold/Bank/Debt</Link></li>
+          {can(user, 'dashboard') && <li><Link to="/" className={isActive('/')}>Dashboard</Link></li>}
+          {can(user, 'home') && <li><Link to="/home" className={isActive('/home')}>Home</Link></li>}
+          {can(user, 'entries') && <li><Link to="/entry" className={isActive('/entry')}>Monthly Entry</Link></li>}
+          {can(user, 'reports') && <li><Link to="/reports" className={isActive('/reports')}>Reports</Link></li>}
+          {can(user, 'shares') && <li><Link to="/shares" className={isActive('/shares')}>Shares</Link></li>}
+          {can(user, 'extras') && <li><Link to="/extras" className={isActive('/extras')}>Gold/Bank/Debt</Link></li>}
           <li><Link to="/settings" className={location.pathname.startsWith('/settings') ? 'nav-link active' : 'nav-link'}>Settings{waiting > 0 && <span className="hh-count" style={{ marginLeft: '0.35rem' }}>{waiting}</span>}</Link></li>
           <li><button className="btn-logout" onClick={logout}>Logout</button></li>
         </ul>

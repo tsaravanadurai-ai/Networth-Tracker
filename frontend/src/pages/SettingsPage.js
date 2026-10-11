@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, can } from '../context/AuthContext';
 import api from '../utils/api';
 import GoldPricePage from './GoldPricePage';
 import FamilyPage from './FamilyPage';
@@ -21,11 +21,11 @@ function SettingsPage() {
   }, [isHead, section]);
 
   const sections = [
-    ['gold', 'Gold Prices'],
+    ...(can(user, 'gold') ? [['gold', 'Gold Prices']] : []),
     ...(isHead ? [['family', 'Family']] : []),
     ['password', 'Password'],
   ];
-  if (!sections.some(([id]) => id === section)) return <Navigate to="/settings/gold" replace />;
+  if (!sections.some(([id]) => id === section)) return <Navigate to={'/settings/' + sections[0][0]} replace />;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -36,7 +36,12 @@ function SettingsPage() {
           </button>
         ))}
       </div>
-      {section === 'gold' && <GoldPricePage />}
+      {section === 'gold' && (can(user, 'gold', 'edit') ? <GoldPricePage /> : (
+        <div className="view-only">
+          <p className="view-only-note">View only. Ask the head of the family if you need to change gold prices.</p>
+          <GoldPricePage />
+        </div>
+      ))}
       {section === 'family' && <FamilyPage />}
       {section === 'password' && <PasswordPage />}
     </div>
