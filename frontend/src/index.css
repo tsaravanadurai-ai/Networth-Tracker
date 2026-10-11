@@ -503,16 +503,7 @@ select.form-control {
 
 /* Responsive */
 @media (max-width: 768px) {
-  .navbar-inner {
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-  
-  .navbar-nav {
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-  
+
   .main-content {
     padding: 1rem;
   }
@@ -706,3 +697,56 @@ select.form-control {
 .inline-amount { background: none; border: 0; border-bottom: 1px dashed var(--gray-400); padding: 0.1rem 0.15rem; font: inherit; color: inherit; cursor: pointer; border-radius: 0; }
 .inline-amount:hover, .inline-amount:focus-visible { background: var(--primary-light); border-bottom-color: var(--primary); outline: none; border-radius: 4px; }
 .inline-amount-input { width: 8.5rem; max-width: 100%; text-align: right; font: inherit; padding: 0.3rem 0.45rem; border: 2px solid var(--primary); border-radius: 6px; font-variant-numeric: tabular-nums; }
+
+/* ---------- Phone layout: slim header + bottom tab bar ---------- */
+.brand-version { font-size: 0.6rem; color: var(--gray-400); margin-left: 0.5rem; font-weight: 400; }
+.mobile-title, .tabbar, .more-sheet-backdrop { display: none; }
+
+@media (max-width: 768px) {
+  .navbar { padding: calc(0.5rem + env(safe-area-inset-top, 0px)) 1rem 0.5rem; }
+  .navbar-inner { flex-direction: row; justify-content: flex-start; gap: 0.6rem; }
+  .navbar-nav, .brand-full, .brand-version { display: none; }
+  .navbar-brand svg { width: 26px; height: 26px; }
+  .mobile-title { display: block; font-weight: 700; font-size: 1.05rem; color: var(--gray-900); }
+  .main-content { padding: 1rem 1rem calc(5rem + env(safe-area-inset-bottom, 0px)); }
+
+  .tabbar {
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 200;
+    background: white; border-top: 1px solid var(--gray-200);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .tabbar-item {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 0.45rem 0.25rem 0.5rem; font: inherit; font-size: 0.68rem; font-weight: 600;
+    color: var(--gray-500); text-decoration: none; background: none; border: 0; cursor: pointer;
+  }
+  .tabbar-item svg { width: 23px; height: 23px; }
+  .tabbar-item.on { color: var(--primary); }
+  .tabbar-item span { position: relative; white-space: nowrap; }
+  .tabbar-dot { position: absolute; top: -2px; right: -8px; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); }
+
+  .more-sheet-backdrop { display: block; position: fixed; inset: 0; background: rgba(17, 24, 39, 0.35); z-index: 190; }
+  .more-sheet {
+    position: absolute; left: 0.75rem; right: 0.75rem; bottom: calc(4.4rem + env(safe-area-inset-bottom, 0px));
+    background: white; border-radius: 16px; padding: 0.4rem; box-shadow: var(--shadow-lg);
+    display: flex; flex-direction: column;
+  }
+  .more-item {
+    display: flex; align-items: center; gap: 0.75rem; padding: 0.85rem 0.9rem; border-radius: 10px;
+    color: var(--gray-700); text-decoration: none; font: inherit; font-weight: 500; background: none; border: 0; text-align: left; cursor: pointer;
+  }
+  .more-item svg { width: 21px; height: 21px; color: var(--gray-500); }
+  .more-item.on { background: var(--primary-light); color: var(--primary); }
+  .more-item.on svg { color: var(--primary); }
+  .more-logout { color: var(--danger); border-top: 1px solid var(--gray-100); border-radius: 0 0 10px 10px; }
+  .more-logout svg { color: var(--danger); }
+}
+
+@media (max-width: 768px) {
+  /* Page tab strips (Reports, Shares, Gold/Bank/Debt) scroll sideways instead of widening the page */
+  .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { padding: 0.65rem 0.9rem; white-space: nowrap; flex: 0 0 auto; }
+  .hh-hide-phone { display: none; }
+}

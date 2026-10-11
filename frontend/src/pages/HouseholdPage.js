@@ -152,7 +152,7 @@ function HouseholdPage() {
       <div className="hh-head">
         <div>
           <p className="hh-eyebrow">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-          <h1 className="hh-title">Home</h1>
+          <h1 className="hh-title hh-hide-phone">Home</h1>
         </div>
         <div className="hh-lang" role="group" aria-label="Voice language">
           <button type="button" className={lang === 'ta-IN' ? 'on' : ''} onClick={() => setLang('ta-IN')}>தமிழ்</button>
@@ -282,12 +282,12 @@ function Shopping({ rows, me, lang, add, patch, del, loaded }) {
     <section className="hh-section">
       <form className="hh-form" onSubmit={submit} autoComplete="off">
         <div className="hh-withmic wide">
-          <input id="hh-item" className="form-control" placeholder="Item, e.g. துவரம் பருப்பு 1 kg" value={item} onChange={e => setItem(e.target.value)} required />
+          <input id="hh-item" className="form-control" placeholder="Add item, e.g. துவரம் பருப்பு" value={item} onChange={e => setItem(e.target.value)} required />
           <MicButton lang={lang} onText={t => setItem(p => (p ? p.trim() + ', ' + t : t))} />
+          <button className="btn btn-primary hh-add" type="submit">Add</button>
         </div>
-        <button className="btn btn-primary" type="submit">Add</button>
       </form>
-      <p className="hh-hint">Say several items at once with "and" or "மற்றும்" between them. Each becomes its own line.</p>
+      <p className="hh-hint">Tip: say several items with "and" or "மற்றும்" between them.</p>
       <ul className="hh-list">
         {loaded && !rows.length && <li className="hh-empty">The list is empty. Add what you need to buy.</li>}
         {sorted.map(r => (

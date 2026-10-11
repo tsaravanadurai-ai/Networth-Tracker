@@ -29,6 +29,16 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+// On a phone the app opens on Home. After that, Dashboard opens normally when tapped.
+const isPhone = () => typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+function landedThisSession() {
+  try {
+    if (sessionStorage.getItem('landed')) return true;
+    sessionStorage.setItem('landed', '1');
+  } catch (e) { return true; }
+  return false;
+}
+
 // Tabs that only show data never get a view-only banner.
 const READ_ONLY_TABS = new Set(['dashboard', 'reports']);
 
@@ -39,6 +49,10 @@ function TabPage({ tab, children }) {
   if (tab && !can(user, tab, 'view')) {
     const first = TAB_ROUTES.find(([t]) => can(user, t, 'view'));
     return <Navigate to={first ? first[1] : '/settings/password'} replace />;
+  }
+  const firstScreen = !landedThisSession();
+  if (tab === 'dashboard' && firstScreen && isPhone() && can(user, 'home', 'view')) {
+    return <Navigate to="/home" replace />;
   }
   const viewOnly = tab && !READ_ONLY_TABS.has(tab) && !can(user, tab, 'edit');
   return (
