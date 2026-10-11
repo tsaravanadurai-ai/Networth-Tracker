@@ -11,6 +11,7 @@ import GoldPricePage from './pages/GoldPricePage';
 import ExtrasPage from './pages/ExtrasPage';
 import SharesPage from './pages/SharesPage';
 import HouseholdPage from './pages/HouseholdPage';
+import PasswordPage from './pages/PasswordPage';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -94,6 +95,14 @@ function AppRoutes() {
           <div className="app-container">
             <Navbar />
             <main className="main-content"><HouseholdPage /></main>
+          </div>
+        </ProtectedRoute>
+      } />
+      <Route path="/password" element={
+        <ProtectedRoute>
+          <div className="app-container">
+            <Navbar />
+            <main className="main-content"><PasswordPage /></main>
           </div>
         </ProtectedRoute>
       } />

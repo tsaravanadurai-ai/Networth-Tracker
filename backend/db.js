@@ -146,8 +146,13 @@ async function initializeDatabase() {
 
   const userCount = await db.execute('SELECT COUNT(*) as count FROM users');
   if (userCount.rows[0].count === 0) {
-    const hashedPassword = hashPassword('Saravana@2024');
-    await db.execute({ sql: 'INSERT INTO users (username, password) VALUES (?, ?)', args: ['saravana', hashedPassword] });
+    // First run only: the admin password comes from the ADMIN_PASSWORD environment variable, never from code.
+    if (process.env.ADMIN_PASSWORD) {
+      const hashedPassword = hashPassword(process.env.ADMIN_PASSWORD);
+      await db.execute({ sql: 'INSERT INTO users (username, password) VALUES (?, ?)', args: ['saravana', hashedPassword] });
+    } else {
+      console.warn('No users yet and ADMIN_PASSWORD is not set. Set it, or create an account from the sign-up page.');
+    }
   }
 
   console.log('Database initialized (Turso)');

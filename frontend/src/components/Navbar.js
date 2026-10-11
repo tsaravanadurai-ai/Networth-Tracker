@@ -34,6 +34,7 @@ function Navbar() {
           <li><Link to="/shares" className={isActive('/shares')}>Shares</Link></li>
           <li><Link to="/extras" className={isActive('/extras')}>Gold/Bank/Debt</Link></li>
           <li><Link to="/gold-prices" className={isActive('/gold-prices')}>Gold Prices</Link></li>
+          <li><Link to="/password" className={isActive('/password')}>Password</Link></li>
           <li><button className="btn-logout" onClick={logout}>Logout</button></li>
         </ul>
       </div>
