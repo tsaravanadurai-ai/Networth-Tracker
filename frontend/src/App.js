@@ -7,12 +7,10 @@ import Dashboard from './pages/Dashboard';
 import MemberPage from './pages/MemberPage';
 import EntryPage from './pages/EntryPage';
 import ReportsPage from './pages/ReportsPage';
-import GoldPricePage from './pages/GoldPricePage';
 import ExtrasPage from './pages/ExtrasPage';
 import SharesPage from './pages/SharesPage';
 import HouseholdPage from './pages/HouseholdPage';
-import PasswordPage from './pages/PasswordPage';
-import FamilyPage from './pages/FamilyPage';
+import SettingsPage from './pages/SettingsPage';
 import PendingPage from './pages/PendingPage';
 
 function ProtectedRoute({ children }) {
@@ -69,14 +67,6 @@ function AppRoutes() {
           </div>
         </ProtectedRoute>
       } />
-      <Route path="/gold-prices" element={
-        <ProtectedRoute>
-          <div className="app-container">
-            <Navbar />
-            <main className="main-content"><GoldPricePage /></main>
-          </div>
-        </ProtectedRoute>
-      } />
       <Route path="/shares" element={
         <ProtectedRoute>
           <div className="app-container">
@@ -101,24 +91,19 @@ function AppRoutes() {
           </div>
         </ProtectedRoute>
       } />
-      <Route path="/password" element={
-        <ProtectedRoute>
-          <div className="app-container">
-            <Navbar />
-            <main className="main-content"><PasswordPage /></main>
-          </div>
-        </ProtectedRoute>
-      } />
-      <Route path="/family" element={
-        <ProtectedRoute>
-          {user?.role === 'head' ? (
+      {['/settings', '/settings/:section'].map(path => (
+        <Route key={path} path={path} element={
+          <ProtectedRoute>
             <div className="app-container">
               <Navbar />
-              <main className="main-content"><FamilyPage /></main>
+              <main className="main-content"><SettingsPage /></main>
             </div>
-          ) : <Navigate to="/" />}
-        </ProtectedRoute>
-      } />
+          </ProtectedRoute>
+        } />
+      ))}
+      <Route path="/gold-prices" element={<Navigate to="/settings/gold" replace />} />
+      <Route path="/family" element={<Navigate to="/settings/family" replace />} />
+      <Route path="/password" element={<Navigate to="/settings/password" replace />} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );

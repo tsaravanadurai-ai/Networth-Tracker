@@ -40,11 +40,7 @@ function Navbar() {
           <li><Link to="/reports" className={isActive('/reports')}>Reports</Link></li>
           <li><Link to="/shares" className={isActive('/shares')}>Shares</Link></li>
           <li><Link to="/extras" className={isActive('/extras')}>Gold/Bank/Debt</Link></li>
-          <li><Link to="/gold-prices" className={isActive('/gold-prices')}>Gold Prices</Link></li>
-          {user?.role === 'head' && (
-            <li><Link to="/family" className={isActive('/family')}>Family{waiting > 0 && <span className="hh-count" style={{ marginLeft: '0.35rem' }}>{waiting}</span>}</Link></li>
-          )}
-          <li><Link to="/password" className={isActive('/password')}>Password</Link></li>
+          <li><Link to="/settings" className={location.pathname.startsWith('/settings') ? 'nav-link active' : 'nav-link'}>Settings{waiting > 0 && <span className="hh-count" style={{ marginLeft: '0.35rem' }}>{waiting}</span>}</Link></li>
           <li><button className="btn-logout" onClick={logout}>Logout</button></li>
         </ul>
       </div>
