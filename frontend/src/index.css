@@ -750,3 +750,10 @@ select.form-control {
   .tab { padding: 0.65rem 0.9rem; white-space: nowrap; flex: 0 0 auto; }
   .hh-hide-phone { display: none; }
 }
+
+/* Icon-only Edit / Delete buttons in table rows */
+.btn.icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 2.1rem; height: 2.1rem; padding: 0; margin: 0 0.15rem; vertical-align: middle; }
+.btn-secondary.icon-btn { color: var(--gray-600); }
+.btn-danger.icon-btn { background: #FEF2F2; color: var(--danger); border: 1px solid #FECACA; }
+.btn-danger.icon-btn:hover { background: var(--danger); color: white; }
+.hh-del svg { display: block; }

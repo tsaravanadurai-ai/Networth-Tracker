@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../utils/api';
+import { TrashIcon } from '../components/ActionIcons';
 import { formatCurrency } from '../utils/helpers';
 import './household.css';
 
@@ -88,7 +89,7 @@ function DeleteButton({ onDelete }) {
   return (
     <button type="button" className={'hh-del' + (armed ? ' armed' : '')}
       onClick={() => (armed ? onDelete() : setArmed(true))} aria-label="Delete">
-      {armed ? 'Delete?' : '×'}
+      {armed ? 'Delete?' : <TrashIcon />}
     </button>
   );
 }

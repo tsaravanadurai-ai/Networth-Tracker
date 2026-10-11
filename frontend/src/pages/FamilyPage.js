@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
+import { EditIcon, TrashIcon } from '../components/ActionIcons';
 import './household.css';
 
 const cap = s => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
@@ -70,9 +71,9 @@ function MembersSection({ onChanged }) {
                 <span className="hh-t">{m.name}</span>
                 <span className="hh-s">{m.label} · {m.records ? `${m.records} record${m.records === 1 ? '' : 's'}` : 'No records yet'}</span>
               </div>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setEditing(m.id); setDraft({ name: m.name, label: m.label, color: m.color }); setError(''); }}>Edit</button>
+              <button type="button" className="btn btn-secondary btn-sm icon-btn" aria-label={'Edit ' + m.name} title="Edit" onClick={() => { setEditing(m.id); setDraft({ name: m.name, label: m.label, color: m.color }); setError(''); }}><EditIcon /></button>
               <button type="button" className={'hh-del' + (armed === m.id ? ' armed' : '')} onClick={() => remove(m)} aria-label={'Remove ' + m.name}>
-                {armed === m.id ? 'Remove?' : '×'}
+                {armed === m.id ? 'Remove?' : <TrashIcon />}
               </button>
             </li>
           )
@@ -192,8 +193,8 @@ function FamilyPage() {
   const pending = members.filter(m => m.status === 'pending');
   const approved = members.filter(m => m.status === 'approved');
 
-  const removeBtn = (m, label) => (
-    <button type="button" className={'hh-del' + (armed === m.id ? ' armed' : '')}
+  const removeBtn = (m, label, aria) => (
+    <button type="button" className={'hh-del' + (armed === m.id ? ' armed' : '')} aria-label={aria} title={aria}
       onClick={() => {
         if (armed === m.id) { setArmed(null); act(() => api.delete('/family/members/' + m.id)); }
         else { setArmed(m.id); setTimeout(() => setArmed(a => (a === m.id ? null : a)), 3000); }
@@ -250,7 +251,7 @@ function FamilyPage() {
             <div className="hh-main">
               <div className="fa-top">
                 <span className="hh-t">{cap(m.username)}{m.isMe ? ' (you)' : ''}</span>
-                {m.role !== 'head' && removeBtn(m, 'Remove')}
+                {m.role !== 'head' && removeBtn(m, <TrashIcon />, 'Remove ' + m.username)}
               </div>
               <span className="hh-s">{m.role === 'head' ? 'Head of the family' : 'Member'} · since {since(m.created_at)}</span>
               <LoginAccess login={m} profiles={profiles} tabs={tabs} onSave={body => act(() => api.patch('/family/members/' + m.id, body))} />

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, PointElement, LineElement, Title, Filler } from 'chart.js';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import api from '../utils/api';
+import { EditIcon, TrashIcon } from '../components/ActionIcons';
 import { formatCurrency, MONTHS, getCurrentMonth, getCurrentYear } from '../utils/helpers';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, PointElement, LineElement, Title, Filler);
@@ -473,8 +474,8 @@ function SharesPage() {
                           <td style={{ textAlign: 'right', color: h.calcPnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatCurrency(h.calcPnl)}</td>
                           <td style={{ textAlign: 'right', color: h.calcPnlPercent >= 0 ? 'var(--success)' : 'var(--danger)' }}>{h.calcPnlPercent}%</td>
                           <td>
-                            <button className="btn btn-secondary btn-sm" onClick={() => editHolding(h)} style={{ marginRight: '0.25rem' }}>Edit</button>
-                            <button className="btn btn-danger btn-sm" onClick={() => deleteHolding(h.id)}>Del</button>
+                            <button className="btn btn-secondary btn-sm icon-btn" onClick={() => editHolding(h)} aria-label="Edit" title="Edit"><EditIcon /></button>
+                            <button className="btn btn-danger btn-sm icon-btn" onClick={() => deleteHolding(h.id)} aria-label="Delete" title="Delete"><TrashIcon /></button>
                           </td>
                         </tr>
                       ))}
@@ -711,8 +712,8 @@ function SharesPage() {
                           <td style={{ textAlign: 'right', color: 'var(--success)' }}>{formatCurrency(d.amount)}</td>
                           <td style={{ color: 'var(--gray-500)', fontSize: '0.85rem' }}>{d.notes}</td>
                           <td>
-                            <button className="btn btn-secondary btn-sm" onClick={() => editDividend(d)} style={{ marginRight: '0.25rem' }}>Edit</button>
-                            <button className="btn btn-danger btn-sm" onClick={() => deleteDividend(d.id)}>Del</button>
+                            <button className="btn btn-secondary btn-sm icon-btn" onClick={() => editDividend(d)} aria-label="Edit" title="Edit"><EditIcon /></button>
+                            <button className="btn btn-danger btn-sm icon-btn" onClick={() => deleteDividend(d.id)} aria-label="Delete" title="Delete"><TrashIcon /></button>
                           </td>
                         </tr>
                       ))}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../utils/api';
+import { EditIcon, TrashIcon } from '../components/ActionIcons';
 import { formatCurrency, MONTHS, CATEGORIES, getCurrentMonth, getCurrentYear } from '../utils/helpers';
 import { useAuth, can } from '../context/AuthContext';
 
@@ -508,8 +509,8 @@ function EntryPage() {
                         {formatCurrency(entry.current_value - entry.invested_amount)}
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <button className="btn btn-secondary btn-sm" onClick={() => handleEdit(entry)} style={{ marginRight: '0.5rem' }}>Edit</button>
-                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(entry.id)}>Delete</button>
+                        <button className="btn btn-secondary btn-sm icon-btn" onClick={() => handleEdit(entry)} aria-label="Edit" title="Edit"><EditIcon /></button>
+                        <button className="btn btn-danger btn-sm icon-btn" onClick={() => handleDelete(entry.id)} aria-label="Delete" title="Delete"><TrashIcon /></button>
                       </td>
                     </tr>
                   ))}
@@ -557,8 +558,8 @@ function EntryPage() {
                           label={`${entry.category} amount to pay`} onSave={n => saveAmount(entry, 'debt_amount', n)} />
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <button className="btn btn-secondary btn-sm" onClick={() => handleEdit(entry)} style={{ marginRight: '0.5rem' }}>Edit</button>
-                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(entry.id)}>Delete</button>
+                        <button className="btn btn-secondary btn-sm icon-btn" onClick={() => handleEdit(entry)} aria-label="Edit" title="Edit"><EditIcon /></button>
+                        <button className="btn btn-danger btn-sm icon-btn" onClick={() => handleDelete(entry.id)} aria-label="Delete" title="Delete"><TrashIcon /></button>
                       </td>
                     </tr>
                   ))}

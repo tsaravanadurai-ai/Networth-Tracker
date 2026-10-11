@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
+import { EditIcon, TrashIcon } from '../components/ActionIcons';
 import { formatCurrency, MONTHS } from '../utils/helpers';
 
 function ExtrasPage() {
@@ -264,8 +265,8 @@ function ExtrasPage() {
                           <td style={{ textAlign: 'right' }} className="amount">{formatCurrency(e.current_value)}</td>
                           <td style={{ textAlign: 'right' }} className={`amount ${e.gain >= 0 ? 'positive' : 'negative'}`}>{formatCurrency(e.gain)}</td>
                           <td className="actions-cell">
-                            <button className="btn btn-secondary btn-sm" onClick={() => openModal('gold', e)} style={{ marginRight: '0.5rem' }}>Edit</button>
-                            <button className="btn btn-danger btn-sm" onClick={() => handleDelete('gold-savings', e.id)}>Delete</button>
+                            <button className="btn btn-secondary btn-sm icon-btn" onClick={() => openModal('gold', e)} aria-label="Edit" title="Edit"><EditIcon /></button>
+                            <button className="btn btn-danger btn-sm icon-btn" onClick={() => handleDelete('gold-savings', e.id)} aria-label="Delete" title="Delete"><TrashIcon /></button>
                           </td>
                         </tr>
                       ))}
@@ -319,8 +320,8 @@ function ExtrasPage() {
                           <td style={{ textAlign: 'right', fontWeight: '600' }}>{formatCurrency(e.amount)}</td>
                           <td style={{ color: 'var(--gray-500)', fontSize: '0.85rem' }}>{e.notes}</td>
                           <td className="actions-cell">
-                            <button className="btn btn-secondary btn-sm" onClick={() => openModal('bank', e)} style={{ marginRight: '0.5rem' }}>Edit</button>
-                            <button className="btn btn-danger btn-sm" onClick={() => handleDelete('bank-reserves', e.id)}>Delete</button>
+                            <button className="btn btn-secondary btn-sm icon-btn" onClick={() => openModal('bank', e)} aria-label="Edit" title="Edit"><EditIcon /></button>
+                            <button className="btn btn-danger btn-sm icon-btn" onClick={() => handleDelete('bank-reserves', e.id)} aria-label="Delete" title="Delete"><TrashIcon /></button>
                           </td>
                         </tr>
                       ))}
@@ -393,8 +394,8 @@ function ExtrasPage() {
                             )}
                           </td>
                           <td className="actions-cell">
-                            <button className="btn btn-secondary btn-sm" onClick={() => openModal('debt', e)} style={{ marginRight: '0.5rem' }}>Edit</button>
-                            <button className="btn btn-danger btn-sm" onClick={() => handleDelete('debt-given', e.id)}>Delete</button>
+                            <button className="btn btn-secondary btn-sm icon-btn" onClick={() => openModal('debt', e)} aria-label="Edit" title="Edit"><EditIcon /></button>
+                            <button className="btn btn-danger btn-sm icon-btn" onClick={() => handleDelete('debt-given', e.id)} aria-label="Delete" title="Delete"><TrashIcon /></button>
                           </td>
                         </tr>
                       ))}
