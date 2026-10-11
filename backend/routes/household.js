@@ -79,7 +79,7 @@ function kindOf(req, res) {
 // People who can be assigned to-dos: everyone with a login.
 router.get('/people', async (req, res) => {
   try {
-    const r = await getDb().execute('SELECT username FROM users ORDER BY id');
+    const r = await getDb().execute("SELECT username FROM users WHERE status = 'approved' ORDER BY id");
     res.json({ me: req.user.username, people: r.rows.map(x => x.username) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

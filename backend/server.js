@@ -11,6 +11,7 @@ const goldRoutes = require('./routes/gold');
 const extrasRoutes = require('./routes/extras');
 const sharesRoutes = require('./routes/shares');
 const householdRoutes = require('./routes/household');
+const familyRoutes = require('./routes/family');
 
 const { startGoldPriceCron } = require('./cron/goldPriceFetcher');
 
@@ -37,6 +38,7 @@ app.use('/api/gold', goldRoutes);
 app.use('/api/extras', extrasRoutes);
 app.use('/api/shares', sharesRoutes);
 app.use('/api/household', householdRoutes);
+app.use('/api/family', familyRoutes);
 
 app.get('/api/version', (req, res) => {
   res.json({ version: APP_VERSION });

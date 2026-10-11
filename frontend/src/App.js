@@ -12,6 +12,8 @@ import ExtrasPage from './pages/ExtrasPage';
 import SharesPage from './pages/SharesPage';
 import HouseholdPage from './pages/HouseholdPage';
 import PasswordPage from './pages/PasswordPage';
+import FamilyPage from './pages/FamilyPage';
+import PendingPage from './pages/PendingPage';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -25,6 +27,7 @@ function ProtectedRoute({ children }) {
   }
   
   if (!user) return <Navigate to="/login" />;
+  if (user.status && user.status !== 'approved') return <PendingPage />;
   return children;
 }
 
@@ -104,6 +107,16 @@ function AppRoutes() {
             <Navbar />
             <main className="main-content"><PasswordPage /></main>
           </div>
+        </ProtectedRoute>
+      } />
+      <Route path="/family" element={
+        <ProtectedRoute>
+          {user?.role === 'head' ? (
+            <div className="app-container">
+              <Navbar />
+              <main className="main-content"><FamilyPage /></main>
+            </div>
+          ) : <Navigate to="/" />}
         </ProtectedRoute>
       } />
       <Route path="*" element={<Navigate to="/" />} />

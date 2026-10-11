@@ -1,43 +1,51 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { getDb, hashPassword, verifyPassword } = require('../db');
-const { JWT_SECRET, authenticateToken } = require('../middleware/auth');
+const { JWT_SECRET, authenticateAny } = require('../middleware/auth');
 
 const router = express.Router();
 
 router.post('/signup', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, familyCode } = req.body;
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required' });
     }
-
     if (username.length < 3) {
       return res.status(400).json({ error: 'Username must be at least 3 characters' });
     }
-
     if (password.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
     const db = getDb();
+    const count = Number((await db.execute('SELECT COUNT(*) AS count FROM users')).rows[0].count);
+    const firstUser = count === 0;
+
+    // Everyone after the first person needs the family code, and then waits for approval.
+    if (!firstUser) {
+      const code = (await db.execute("SELECT value FROM settings WHERE key = 'family_code'")).rows[0]?.value;
+      if (!familyCode || !code || String(familyCode).trim().toUpperCase() !== code) {
+        return res.status(403).json({ error: 'That family code is not right. Ask the head of your family for the current code.', badCode: true });
+      }
+    }
+
     const existing = await db.execute({ sql: 'SELECT id FROM users WHERE username = ?', args: [username.toLowerCase()] });
     if (existing.rows.length > 0) {
       return res.status(409).json({ error: 'Username already taken' });
     }
 
     const hashedPassword = hashPassword(password);
-    await db.execute({ sql: 'INSERT INTO users (username, password) VALUES (?, ?)', args: [username.toLowerCase(), hashedPassword] });
+    await db.execute({
+      sql: 'INSERT INTO users (username, password, role, status) VALUES (?, ?, ?, ?)',
+      args: [username.toLowerCase(), hashedPassword, firstUser ? 'head' : 'member', firstUser ? 'approved' : 'pending'],
+    });
 
-    const user = await db.execute({ sql: 'SELECT * FROM users WHERE username = ?', args: [username.toLowerCase()] });
-    const token = jwt.sign(
-      { id: user.rows[0].id, username: user.rows[0].username },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+    const user = (await db.execute({ sql: 'SELECT * FROM users WHERE username = ?', args: [username.toLowerCase()] })).rows[0];
+    const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
 
-    res.status(201).json({ token, username: user.rows[0].username });
+    res.status(201).json({ token, username: user.username, role: user.role, status: user.status });
   } catch (err) {
     console.error('Signup error:', err);
     res.status(500).json({ error: 'Server error' });
@@ -71,14 +79,14 @@ router.post('/login', async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    res.json({ token, username: user.username });
+    res.json({ token, username: user.username, role: user.role, status: user.status });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-router.post('/change-password', authenticateToken, async (req, res) => {
+router.post('/change-password', authenticateAny, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
@@ -105,8 +113,8 @@ router.post('/change-password', authenticateToken, async (req, res) => {
   }
 });
 
-router.get('/verify', authenticateToken, (req, res) => {
-  res.json({ valid: true, username: req.user.username });
+router.get('/verify', authenticateAny, (req, res) => {
+  res.json({ valid: true, username: req.user.username, role: req.user.role, status: req.user.status });
 });
 
 module.exports = router;

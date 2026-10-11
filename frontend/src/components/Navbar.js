@@ -4,13 +4,20 @@ import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 
 function Navbar() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+  const [waiting, setWaiting] = useState(0);
   const location = useLocation();
   const [version, setVersion] = useState('');
 
   useEffect(() => {
     api.get('/version').then(res => setVersion(res.data.version)).catch(() => {});
   }, []);
+
+  // Let the head of the family see when someone is waiting for approval.
+  useEffect(() => {
+    if (user?.role !== 'head') return;
+    api.get('/family').then(res => setWaiting(res.data.members.filter(m => m.status === 'pending').length)).catch(() => {});
+  }, [user, location.pathname]);
 
   const isActive = (path) => location.pathname === path ? 'nav-link active' : 'nav-link';
 
@@ -34,6 +41,9 @@ function Navbar() {
           <li><Link to="/shares" className={isActive('/shares')}>Shares</Link></li>
           <li><Link to="/extras" className={isActive('/extras')}>Gold/Bank/Debt</Link></li>
           <li><Link to="/gold-prices" className={isActive('/gold-prices')}>Gold Prices</Link></li>
+          {user?.role === 'head' && (
+            <li><Link to="/family" className={isActive('/family')}>Family{waiting > 0 && <span className="hh-count" style={{ marginLeft: '0.35rem' }}>{waiting}</span>}</Link></li>
+          )}
           <li><Link to="/password" className={isActive('/password')}>Password</Link></li>
           <li><button className="btn-logout" onClick={logout}>Logout</button></li>
         </ul>

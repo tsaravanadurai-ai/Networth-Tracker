@@ -6,6 +6,7 @@ function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [familyCode, setFamilyCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login, signup } = useAuth();
@@ -22,7 +23,7 @@ function LoginPage() {
     setLoading(true);
     try {
       if (isSignUp) {
-        await signup(username, password);
+        await signup(username, password, familyCode);
       } else {
         await login(username, password);
       }
@@ -80,6 +81,25 @@ function LoginPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Re-enter your password"
               />
+            </div>
+          )}
+          {isSignUp && (
+            <div className="form-group">
+              <label className="form-label" htmlFor="family-code">Family code</label>
+              <input
+                id="family-code"
+                type="text"
+                className="form-control"
+                value={familyCode}
+                onChange={(e) => setFamilyCode(e.target.value.toUpperCase())}
+                placeholder="Ask the head of your family"
+                autoCapitalize="characters"
+                autoComplete="off"
+                style={{ letterSpacing: '0.15em', fontWeight: 600 }}
+              />
+              <p style={{ fontSize: '0.8rem', color: 'var(--gray-500)', marginTop: '0.35rem' }}>
+                After you sign up, the head of the family approves your request before you can see anything.
+              </p>
             </div>
           )}
           <button type="submit" className="btn btn-primary" disabled={loading}>

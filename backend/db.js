@@ -155,7 +155,43 @@ async function initializeDatabase() {
     }
   }
 
+  await initFamilyAccess(db);
+
   console.log('Database initialized (Turso)');
 }
 
-module.exports = { getDb, initializeDatabase, hashPassword, verifyPassword };
+function newFamilyCode() {
+  // 8 characters, no look-alikes (0/O, 1/I/L)
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for (const b of crypto.randomBytes(8)) s += chars[b % chars.length];
+  return s;
+}
+
+// Family code + approval: one head of the family approves everyone else.
+async function initFamilyAccess(db) {
+  await db.execute('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+
+  const cols = (await db.execute('PRAGMA table_info(users)')).rows.map(r => r.name);
+  if (!cols.includes('role')) await db.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'member'");
+  if (!cols.includes('status')) {
+    await db.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'pending'");
+    // Accounts that existed before this change keep their access.
+    await db.execute("UPDATE users SET status = 'approved'");
+  }
+
+  const heads = await db.execute("SELECT COUNT(*) AS count FROM users WHERE role = 'head'");
+  if (Number(heads.rows[0].count) === 0) {
+    const pick = await db.execute("SELECT id FROM users ORDER BY (username = 'saravana') DESC, id ASC LIMIT 1");
+    if (pick.rows[0]) {
+      await db.execute({ sql: "UPDATE users SET role = 'head', status = 'approved' WHERE id = ?", args: [pick.rows[0].id] });
+    }
+  }
+
+  const code = await db.execute("SELECT value FROM settings WHERE key = 'family_code'");
+  if (!code.rows[0]) {
+    await db.execute({ sql: "INSERT INTO settings (key, value) VALUES ('family_code', ?)", args: [newFamilyCode()] });
+  }
+}
+
+module.exports = { getDb, initializeDatabase, hashPassword, verifyPassword, newFamilyCode };
