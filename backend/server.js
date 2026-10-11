@@ -10,6 +10,7 @@ const excelRoutes = require('./routes/excel');
 const goldRoutes = require('./routes/gold');
 const extrasRoutes = require('./routes/extras');
 const sharesRoutes = require('./routes/shares');
+const householdRoutes = require('./routes/household');
 
 const { startGoldPriceCron } = require('./cron/goldPriceFetcher');
 
@@ -35,6 +36,7 @@ app.use('/api/excel', excelRoutes);
 app.use('/api/gold', goldRoutes);
 app.use('/api/extras', extrasRoutes);
 app.use('/api/shares', sharesRoutes);
+app.use('/api/household', householdRoutes);
 
 app.get('/api/version', (req, res) => {
   res.json({ version: APP_VERSION });
@@ -46,6 +48,7 @@ app.get('*', (req, res) => {
 
 async function start() {
   await initializeDatabase();
+  await householdRoutes.initHouseholdTables();
   startGoldPriceCron();
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

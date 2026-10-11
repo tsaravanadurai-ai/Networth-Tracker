@@ -28,6 +28,7 @@ function Navbar() {
         </Link>
         <ul className="navbar-nav">
           <li><Link to="/" className={isActive('/')}>Dashboard</Link></li>
+          <li><Link to="/home" className={isActive('/home')}>Home</Link></li>
           <li><Link to="/entry" className={isActive('/entry')}>Monthly Entry</Link></li>
           <li><Link to="/reports" className={isActive('/reports')}>Reports</Link></li>
           <li><Link to="/shares" className={isActive('/shares')}>Shares</Link></li>
