@@ -1,11 +1,54 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../utils/api';
 import { formatCurrency, MONTHS, CATEGORIES, getCurrentMonth, getCurrentYear } from '../utils/helpers';
+import { useAuth, can } from '../context/AuthContext';
 
 const DEBT_CATEGORIES = ['Personal Loan (Debt)', 'Home Loan (Debt)', 'Car Loan (Debt)', 'Other Loan (Debt)'];
 
 function isDebtCategory(cat) {
   return DEBT_CATEGORIES.includes(cat) || cat.toLowerCase().includes('loan') || cat.toLowerCase().includes('debt');
+}
+
+// A number in the table you can tap to change in place. Enter or tapping away saves; Esc cancels.
+function InlineAmount({ value, display, editable, onSave, label }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState('');
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef(null);
+
+  useEffect(() => { if (editing && inputRef.current) { inputRef.current.focus(); inputRef.current.select(); } }, [editing]);
+
+  if (!editable) return <>{display}</>;
+
+  const start = () => { setText(String(value ?? 0)); setEditing(true); };
+  const finish = async (save) => {
+    if (!save) { setEditing(false); return; }
+    const n = parseFloat(String(text).replace(/[^0-9.-]/g, ''));
+    if (Number.isNaN(n) || n === Number(value)) { setEditing(false); return; }
+    setSaving(true);
+    try { await onSave(n); } finally { setSaving(false); setEditing(false); }
+  };
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        className="inline-amount-input"
+        inputMode="decimal"
+        value={text}
+        disabled={saving}
+        aria-label={label}
+        onChange={e => setText(e.target.value)}
+        onBlur={() => finish(true)}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } if (e.key === 'Escape') finish(false); }}
+      />
+    );
+  }
+  return (
+    <button type="button" className="inline-amount" onClick={start} title="Tap to change" aria-label={`${label}: ${display}. Tap to change.`}>
+      {display}
+    </button>
+  );
 }
 
 function EntryPage() {
@@ -38,6 +81,36 @@ function EntryPage() {
   const [goldPrice, setGoldPrice] = useState(null);
   const [goldLoading, setGoldLoading] = useState(false);
   const fileInputRef = useRef(null);
+  const { user } = useAuth();
+  const canEdit = can(user, 'entries', 'edit');
+
+  // Save one changed number from the table without opening the edit form.
+  const saveAmount = async (entry, field, n) => {
+    const isDebt = isDebtCategory(entry.category);
+    const payload = {
+      family_member_id: entry.family_member_id,
+      month: entry.month,
+      year: entry.year,
+      category: entry.category,
+      description: entry.description,
+      invested_amount: isDebt ? 0 : entry.invested_amount,
+      current_value: isDebt ? 0 : entry.current_value,
+      debt_amount: isDebt ? Math.abs(entry.current_value) : 0,
+      [field]: field === 'debt_amount' ? Math.abs(n) : n,
+    };
+    try {
+      await api.put(`/entries/${entry.id}`, payload);
+      setEntries(prev => prev.map(e => e.id !== entry.id ? e : {
+        ...e,
+        invested_amount: isDebt ? 0 : payload.invested_amount,
+        current_value: isDebt ? -Math.abs(payload.debt_amount) : payload.current_value,
+      }));
+      showMsg('Saved');
+    } catch (err) {
+      showMsg(err.response?.data?.error || 'Could not save the change', true);
+      fetchEntries();
+    }
+  };
 
   useEffect(() => {
     fetchMembers();
@@ -423,8 +496,14 @@ function EntryPage() {
                     <tr key={entry.id}>
                       <td><span className="badge badge-success">{entry.category}</span></td>
                       <td>{entry.description !== entry.category ? entry.description : ''}</td>
-                      <td style={{ textAlign: 'right' }} className="amount">{formatCurrency(entry.invested_amount)}</td>
-                      <td style={{ textAlign: 'right' }} className="amount">{formatCurrency(entry.current_value)}</td>
+                      <td style={{ textAlign: 'right' }} className="amount">
+                        <InlineAmount value={entry.invested_amount} display={formatCurrency(entry.invested_amount)} editable={canEdit}
+                          label={`${entry.category} invested`} onSave={n => saveAmount(entry, 'invested_amount', n)} />
+                      </td>
+                      <td style={{ textAlign: 'right' }} className="amount">
+                        <InlineAmount value={entry.current_value} display={formatCurrency(entry.current_value)} editable={canEdit}
+                          label={`${entry.category} current value`} onSave={n => saveAmount(entry, 'current_value', n)} />
+                      </td>
                       <td style={{ textAlign: 'right' }} className={`amount ${(entry.current_value - entry.invested_amount) >= 0 ? 'positive' : 'negative'}`}>
                         {formatCurrency(entry.current_value - entry.invested_amount)}
                       </td>
@@ -474,7 +553,8 @@ function EntryPage() {
                       <td><span className="badge badge-danger">{entry.category}</span></td>
                       <td>{entry.description !== entry.category ? entry.description : ''}</td>
                       <td style={{ textAlign: 'right', color: 'var(--danger)', fontWeight: '600' }}>
-                        -{formatCurrency(Math.abs(entry.current_value))}
+                        <InlineAmount value={Math.abs(entry.current_value)} display={'-' + formatCurrency(Math.abs(entry.current_value))} editable={canEdit}
+                          label={`${entry.category} amount to pay`} onSave={n => saveAmount(entry, 'debt_amount', n)} />
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <button className="btn btn-secondary btn-sm" onClick={() => handleEdit(entry)} style={{ marginRight: '0.5rem' }}>Edit</button>

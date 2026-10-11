@@ -701,3 +701,8 @@ select.form-control {
 .view-only .hh-form + .hh-hint,
 .view-only .hh-section > .btn-secondary { display: none !important; }
 .view-only .hh-check { pointer-events: none; opacity: 0.6; }
+
+/* Tap-to-edit numbers in Monthly Entry */
+.inline-amount { background: none; border: 0; border-bottom: 1px dashed var(--gray-400); padding: 0.1rem 0.15rem; font: inherit; color: inherit; cursor: pointer; border-radius: 0; }
+.inline-amount:hover, .inline-amount:focus-visible { background: var(--primary-light); border-bottom-color: var(--primary); outline: none; border-radius: 4px; }
+.inline-amount-input { width: 8.5rem; max-width: 100%; text-align: right; font: inherit; padding: 0.3rem 0.45rem; border: 2px solid var(--primary); border-radius: 6px; font-variant-numeric: tabular-nums; }
