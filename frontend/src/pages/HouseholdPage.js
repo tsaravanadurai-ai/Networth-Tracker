@@ -105,14 +105,13 @@ const nameOf = (u, me) => (u === 'both' ? 'Both' : u === me ? 'You' : u ? u.char
 
 // ---------- page ----------
 function HouseholdPage() {
-  const [tab, setTab] = useState(() => { try { return localStorage.getItem('hh-tab') || 'money'; } catch (e) { return 'money'; } });
+  const [tab, setTab] = useState('shopping');
   const [lang, setLang] = useState(() => { try { return localStorage.getItem('hh-lang') || 'ta-IN'; } catch (e) { return 'ta-IN'; } });
   const [data, setData] = useState({ expenses: [], groceries: [], todos: [], notes: [] });
   const [people, setPeople] = useState({ me: '', people: [] });
   const [error, setError] = useState('');
   const [loaded, setLoaded] = useState(false);
 
-  useEffect(() => { try { localStorage.setItem('hh-tab', tab); } catch (e) { /* ignore */ } }, [tab]);
   useEffect(() => { try { localStorage.setItem('hh-lang', lang); } catch (e) { /* ignore */ } }, [lang]);
 
   const load = useCallback(async () => {
@@ -160,7 +159,7 @@ function HouseholdPage() {
       </div>
 
       <div className="hh-tabs" role="tablist">
-        {[['money', 'Money', null], ['shopping', 'Shopping', left(data.groceries)], ['todos', 'To-dos', left(data.todos)], ['notes', 'Notes', null]].map(([id, label, n]) => (
+        {[['shopping', 'Shopping', left(data.groceries)], ['money', 'Money', null], ['todos', 'To-dos', left(data.todos)], ['notes', 'Notes', null]].map(([id, label, n]) => (
           <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>
             {label}{n ? <span className="hh-count">{n}</span> : null}
           </button>
