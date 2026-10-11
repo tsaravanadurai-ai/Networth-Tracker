@@ -48,7 +48,7 @@ const voiceMessage = text => window.dispatchEvent(new CustomEvent('hh-voice', { 
 
 const VOICE_ERRORS = {
   'not-allowed': 'Voice input is blocked. On iPhone open Settings → Safari → Microphone and choose Allow, and make sure Siri & Dictation is turned on (Settings → Siri). Then try again.',
-  'service-not-allowed': "This browser doesn't allow voice input. Open the site in Safari, or use the mic key on your keyboard.",
+  'service-not-allowed': 'Voice input is switched off on this phone. On iPhone turn on Settings → General → Keyboard → Enable Dictation, and Settings → Siri, then close and reopen Safari. You can also use the mic key on your keyboard.',
   'language-not-supported': 'Tamil voice input isn\u2019t available here. Switch to English, or add the Tamil keyboard and use its mic key.',
   'no-speech': "Didn't hear anything. Tap the mic and speak right away.",
   'audio-capture': 'No microphone found. Check that no other app is using it.',
