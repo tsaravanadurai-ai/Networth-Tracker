@@ -64,3 +64,6 @@
 
 .hh button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 @media (max-width: 480px) { .hh-bar { grid-template-columns: 5rem 1fr auto; } .hh-tabs button { font-size: 0.8rem; } }
+
+.fm-dot { width: 14px; height: 14px; border-radius: 50%; flex: 0 0 14px; }
+.fm-color { width: 2.75rem; height: auto; min-height: 2.5rem; padding: 2px; border: 1px solid var(--gray-300); border-radius: 10px; background: white; cursor: pointer; flex: 0 0 auto; }

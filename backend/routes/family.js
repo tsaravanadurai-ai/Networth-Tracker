@@ -44,4 +44,64 @@ router.delete('/members/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ---------- Family members whose net worth is tracked (not logins) ----------
+
+const MEMBER_TABLES = ['monthly_entries', 'gold_savings', 'bank_reserves', 'debt_given', 'share_holdings', 'dividends'];
+const isColor = c => /^#[0-9a-fA-F]{6}$/.test(c || '');
+
+async function recordCount(db, id) {
+  let total = 0;
+  for (const t of MEMBER_TABLES) {
+    const r = await db.execute({ sql: `SELECT COUNT(*) AS n FROM ${t} WHERE family_member_id = ?`, args: [id] });
+    total += Number(r.rows[0].n);
+  }
+  return total;
+}
+
+router.get('/profiles', async (req, res) => {
+  try {
+    const db = getDb();
+    const rows = (await db.execute('SELECT * FROM family_members ORDER BY id')).rows;
+    const out = [];
+    for (const m of rows) out.push({ ...m, id: Number(m.id), records: await recordCount(db, m.id) });
+    res.json(out);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/profiles', async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim().slice(0, 60);
+    const label = String(req.body.label || '').trim().slice(0, 60);
+    const color = isColor(req.body.color) ? req.body.color : '#4F46E5';
+    if (!name || !label) return res.status(400).json({ error: 'Enter a name and a relationship.' });
+    const r = await getDb().execute({ sql: 'INSERT INTO family_members (name, label, color) VALUES (?, ?, ?)', args: [name, label, color] });
+    res.status(201).json({ id: Number(r.lastInsertRowid) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.patch('/profiles/:id', async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim().slice(0, 60);
+    const label = String(req.body.label || '').trim().slice(0, 60);
+    if (!name || !label) return res.status(400).json({ error: 'Enter a name and a relationship.' });
+    if (req.body.color !== undefined && !isColor(req.body.color)) return res.status(400).json({ error: 'Pick a colour.' });
+    await getDb().execute({
+      sql: 'UPDATE family_members SET name = ?, label = ?, color = COALESCE(?, color) WHERE id = ?',
+      args: [name, label, req.body.color || null, req.params.id],
+    });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Only members with no saved records can be removed, so no net worth data is lost.
+router.delete('/profiles/:id', async (req, res) => {
+  try {
+    const db = getDb();
+    const n = await recordCount(db, req.params.id);
+    if (n > 0) return res.status(409).json({ error: `This member has ${n} saved record${n === 1 ? '' : 's'}. Delete those first, or keep the member.` });
+    await db.execute({ sql: 'DELETE FROM family_members WHERE id = ?', args: [req.params.id] });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;
