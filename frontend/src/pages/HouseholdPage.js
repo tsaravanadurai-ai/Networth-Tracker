@@ -101,7 +101,9 @@ function Check({ done, onClick, label }) {
   );
 }
 
-const nameOf = (u, me) => (u === 'both' ? 'Both' : u === me ? 'You' : u ? u.charAt(0).toUpperCase() + u.slice(1) : '');
+// Linked family-member names for each login, filled in when the page loads.
+let LINKED = {};
+const nameOf = (u, me) => (u === 'both' ? 'Both' : u === me ? 'You' : LINKED[u] || (u ? u.charAt(0).toUpperCase() + u.slice(1) : ''));
 
 // ---------- page ----------
 function HouseholdPage() {
@@ -126,7 +128,7 @@ function HouseholdPage() {
 
   useEffect(() => {
     load();
-    api.get('/household/people').then(r => setPeople(r.data)).catch(() => {});
+    api.get('/household/people').then(r => { LINKED = r.data.names || {}; setPeople(r.data); }).catch(() => {});
     // Pick up your partner's changes: refresh when the app comes back to the front, and every 20 s while open.
     const onVis = () => { if (document.visibilityState === 'visible') load(); };
     document.addEventListener('visibilitychange', onVis);

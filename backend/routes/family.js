@@ -3,6 +3,10 @@ const { getDb, newFamilyCode } = require('../db');
 const { authenticateToken, requireHead, clearUserCache } = require('../middleware/auth');
 
 const router = express.Router();
+
+function safeList(text) {
+  try { const a = JSON.parse(text); return Array.isArray(a) ? a.map(Number).filter(Number.isInteger) : []; } catch (e) { return []; }
+}
 router.use(authenticateToken);
 router.use(requireHead);
 
@@ -12,8 +16,14 @@ router.get('/', async (req, res) => {
     const db = getDb();
     const code = (await db.execute("SELECT value FROM settings WHERE key = 'family_code'")).rows[0]?.value || '';
     const members = (await db.execute(
-      "SELECT id, username, role, status, created_at FROM users ORDER BY (status = 'pending') DESC, (role = 'head') DESC, id ASC"
-    )).rows.map(r => ({ ...r, id: Number(r.id), isMe: Number(r.id) === req.user.id }));
+      "SELECT id, username, role, status, member_id, access, created_at FROM users ORDER BY (status = 'pending') DESC, (role = 'head') DESC, id ASC"
+    )).rows.map(r => ({
+      id: Number(r.id), username: r.username, role: r.role, status: r.status, created_at: r.created_at,
+      memberId: r.member_id == null ? null : Number(r.member_id),
+      // null = sees every member; [] or [ids] = only those
+      access: r.role === 'head' || r.access == null ? null : safeList(r.access),
+      isMe: Number(r.id) === req.user.id,
+    }));
     res.json({ code, members });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -28,7 +38,37 @@ router.post('/code', async (req, res) => {
 
 router.post('/members/:id/approve', async (req, res) => {
   try {
-    await getDb().execute({ sql: "UPDATE users SET status = 'approved' WHERE id = ? AND role != 'head'", args: [req.params.id] });
+    // A newly approved login sees no one's net worth until you choose members for it.
+    await getDb().execute({
+      sql: "UPDATE users SET status = 'approved', access = CASE WHEN status = 'pending' THEN '[]' ELSE access END WHERE id = ? AND role != 'head'",
+      args: [req.params.id],
+    });
+    clearUserCache(req.params.id);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Link a login to a family member, and choose whose net worth it can see.
+router.patch('/members/:id', async (req, res) => {
+  try {
+    const db = getDb();
+    const u = (await db.execute({ sql: 'SELECT id, role FROM users WHERE id = ?', args: [req.params.id] })).rows[0];
+    if (!u) return res.status(404).json({ error: 'That login no longer exists.' });
+    const known = new Set((await db.execute('SELECT id FROM family_members')).rows.map(r => Number(r.id)));
+    const sets = [], args = [];
+    if ('memberId' in req.body) {
+      const m = req.body.memberId == null || req.body.memberId === '' ? null : Number(req.body.memberId);
+      if (m !== null && !known.has(m)) return res.status(400).json({ error: 'Pick a family member from the list.' });
+      sets.push('member_id = ?'); args.push(m);
+    }
+    if ('access' in req.body && u.role !== 'head') {
+      const a = req.body.access;
+      if (a === null) { sets.push('access = NULL'); }
+      else if (Array.isArray(a)) { sets.push('access = ?'); args.push(JSON.stringify([...new Set(a.map(Number))].filter(x => known.has(x)))); }
+      else return res.status(400).json({ error: 'Choose who they can see.' });
+    }
+    if (!sets.length) return res.status(400).json({ error: 'Nothing to change.' });
+    await db.execute({ sql: `UPDATE users SET ${sets.join(', ')} WHERE id = ?`, args: [...args, req.params.id] });
     clearUserCache(req.params.id);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }

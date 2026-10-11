@@ -67,3 +67,12 @@
 
 .fm-dot { width: 14px; height: 14px; border-radius: 50%; flex: 0 0 14px; }
 .fm-color { width: 2.75rem; height: auto; min-height: 2.5rem; padding: 2px; border: 1px solid var(--gray-300); border-radius: 10px; background: white; cursor: pointer; flex: 0 0 auto; }
+
+.fa-top { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.fa-box { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.6rem; padding: 0.75rem; background: var(--gray-50); border-radius: 10px; }
+.fa-row { display: grid; grid-template-columns: 4.5rem 1fr; align-items: center; gap: 0.5rem; }
+.fa-select { padding-top: 0.45rem; padding-bottom: 0.45rem; }
+.fa-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.fa-chip { display: inline-flex; align-items: center; gap: 0.4rem; border: 1px solid var(--gray-300); background: white; color: var(--gray-600); border-radius: 999px; padding: 0.3rem 0.75rem; font: inherit; font-size: 0.85rem; cursor: pointer; }
+.fa-chip.on { border-color: var(--primary); background: var(--primary-light); color: var(--primary); font-weight: 600; }
+.fa-chip .fm-dot { width: 10px; height: 10px; flex-basis: 10px; }

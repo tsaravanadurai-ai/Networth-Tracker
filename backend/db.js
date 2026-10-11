@@ -1,14 +1,16 @@
 const { createClient } = require('@libsql/client');
 const crypto = require('crypto');
+const { wrapClient } = require('./memberScope');
 
 let db;
 
+// The client is wrapped so requests from a limited login only reach the family members they may see.
 function getDb() {
   if (!db) {
-    db = createClient({
+    db = wrapClient(createClient({
       url: process.env.TURSO_DATABASE_URL,
       authToken: process.env.TURSO_AUTH_TOKEN,
-    });
+    }));
   }
   return db;
 }
@@ -179,6 +181,10 @@ async function initFamilyAccess(db) {
     // Accounts that existed before this change keep their access.
     await db.execute("UPDATE users SET status = 'approved'");
   }
+
+  // Which family member a login is, and which members' net worth it may see (NULL = everyone).
+  if (!cols.includes('member_id')) await db.execute('ALTER TABLE users ADD COLUMN member_id INTEGER');
+  if (!cols.includes('access')) await db.execute('ALTER TABLE users ADD COLUMN access TEXT');
 
   const heads = await db.execute("SELECT COUNT(*) AS count FROM users WHERE role = 'head'");
   if (Number(heads.rows[0].count) === 0) {

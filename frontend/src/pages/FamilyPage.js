@@ -10,7 +10,7 @@ const RELATIONS = ['Myself', 'Wife', 'Husband', 'Son', 'Daughter', 'Father', 'Mo
 const PALETTE = ['#4F46E5', '#EC4899', '#10B981', '#F59E0B', '#8B5CF6', '#0EA5E9', '#EF4444', '#14B8A6'];
 
 // The people whose net worth is tracked. They don't need a login.
-function MembersSection() {
+function MembersSection({ onChanged }) {
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(null);
@@ -30,7 +30,7 @@ function MembersSection() {
   }, [rows]);
 
   const act = async fn => {
-    try { await fn(); await load(); return true; }
+    try { await fn(); await load(); if (onChanged) onChanged(); return true; }
     catch (e) { setError(e.response?.data?.error || "Couldn't save. Try again."); return false; }
   };
 
@@ -88,7 +88,58 @@ function MembersSection() {
   );
 }
 
+// One login: which family member it is, and whose net worth it can see.
+function LoginAccess({ login, profiles, onSave }) {
+  const isHead = login.role === 'head';
+  const limited = Array.isArray(login.access);
+  const chosen = new Set(limited ? login.access : []);
+
+  const toggle = id => {
+    const next = new Set(chosen);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    onSave({ access: [...next] });
+  };
+
+  return (
+    <div className="fa-box">
+      <label className="fa-row" htmlFor={'fa-link-' + login.id}>
+        <span className="hh-s">Is</span>
+        <select id={'fa-link-' + login.id} className="form-control fa-select" value={login.memberId ?? ''}
+          onChange={e => onSave({ memberId: e.target.value === '' ? null : Number(e.target.value) })}>
+          <option value="">Not linked</option>
+          {profiles.map(p => <option key={p.id} value={p.id}>{p.name} ({p.label})</option>)}
+        </select>
+      </label>
+      {isHead ? (
+        <p className="hh-s">Sees everyone's net worth.</p>
+      ) : (
+        <>
+          <label className="fa-row" htmlFor={'fa-scope-' + login.id}>
+            <span className="hh-s">Can see</span>
+            <select id={'fa-scope-' + login.id} className="form-control fa-select" value={limited ? 'some' : 'all'}
+              onChange={e => onSave({ access: e.target.value === 'all' ? null : (login.memberId ? [login.memberId] : []) })}>
+              <option value="all">Everyone's net worth</option>
+              <option value="some">Only the members I pick</option>
+            </select>
+          </label>
+          {limited && (
+            <div className="fa-chips">
+              {profiles.map(p => (
+                <button key={p.id} type="button" className={'fa-chip' + (chosen.has(p.id) ? ' on' : '')} aria-pressed={chosen.has(p.id)} onClick={() => toggle(p.id)}>
+                  <span className="fm-dot" style={{ background: p.color }} />{p.name}
+                </button>
+              ))}
+              {!chosen.size && <p className="hh-s" style={{ width: '100%' }}>Sees no one's net worth yet. Tap names to allow them.</p>}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function FamilyPage() {
+  const [profiles, setProfiles] = useState([]);
   const [code, setCode] = useState('');
   const [members, setMembers] = useState([]);
   const [error, setError] = useState('');
@@ -98,8 +149,8 @@ function FamilyPage() {
 
   const load = useCallback(async () => {
     try {
-      const r = await api.get('/family');
-      setCode(r.data.code); setMembers(r.data.members); setError('');
+      const [r, p] = await Promise.all([api.get('/family'), api.get('/family/profiles')]);
+      setCode(r.data.code); setMembers(r.data.members); setProfiles(p.data); setError('');
     } catch (e) { setError(e.response?.data?.error || "Couldn't load your family. Try again."); }
   }, []);
 
@@ -175,15 +226,18 @@ function FamilyPage() {
         {approved.map(m => (
           <li key={m.id}>
             <div className="hh-main">
-              <span className="hh-t">{cap(m.username)}{m.isMe ? ' (you)' : ''}</span>
+              <div className="fa-top">
+                <span className="hh-t">{cap(m.username)}{m.isMe ? ' (you)' : ''}</span>
+                {m.role !== 'head' && removeBtn(m, 'Remove')}
+              </div>
               <span className="hh-s">{m.role === 'head' ? 'Head of the family' : 'Member'} · since {since(m.created_at)}</span>
+              <LoginAccess login={m} profiles={profiles} onSave={body => act(() => api.patch('/family/members/' + m.id, body))} />
             </div>
-            {m.role !== 'head' && removeBtn(m, 'Remove')}
           </li>
         ))}
       </ul>
 
-      <MembersSection />
+      <MembersSection onChanged={load} />
     </div>
   );
 }

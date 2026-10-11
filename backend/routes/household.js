@@ -79,8 +79,17 @@ function kindOf(req, res) {
 // People who can be assigned to-dos: everyone with a login.
 router.get('/people', async (req, res) => {
   try {
-    const r = await getDb().execute("SELECT username FROM users WHERE status = 'approved' ORDER BY id");
-    res.json({ me: req.user.username, people: r.rows.map(x => x.username) });
+    // Show each login by the family member it's linked to, when it has one.
+    const db = getDb();
+    const r = await db.execute("SELECT username, member_id FROM users WHERE status = 'approved' ORDER BY id");
+    const names = {};
+    const ids = r.rows.map(x => x.member_id).filter(x => x != null).map(Number);
+    if (ids.length) {
+      const fm = await db.raw.execute(`SELECT id, name FROM family_members WHERE id IN (${ids.join(',')})`);
+      const byId = Object.fromEntries(fm.rows.map(x => [Number(x.id), x.name]));
+      r.rows.forEach(x => { if (x.member_id != null && byId[Number(x.member_id)]) names[x.username] = byId[Number(x.member_id)]; });
+    }
+    res.json({ me: req.user.username, people: r.rows.map(x => x.username), names });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
